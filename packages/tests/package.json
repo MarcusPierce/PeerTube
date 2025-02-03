@@ -1,0 +1,13 @@
+{
+  "name": "@peertube/tests",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "devDependencies": {},
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "install-dependencies:transcription": "pip install -r ./requirements.txt -r ../transcription-devtools/requirements.txt"
+  },
+  "dependencies": {}
+}

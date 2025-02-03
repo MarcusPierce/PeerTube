@@ -1,49 +1,20 @@
 @use '_variables' as *;
 @use '_mixins' as *;
+@use '_button-mixins' as *;
 
 .dropdown-divider:last-child {
   display: none;
 }
 
 .action-button {
-  @include peertube-button;
-
   display: inline-block;
-  padding: 0 10px;
-
-  &.button-styled {
-
-    &.grey {
-      @include grey-button;
-    }
-
-    &.orange {
-      @include orange-button;
-    }
-
-    &:hover,
-    &:active,
-    &:focus {
-      background-color: $grey-background-color;
-    }
-  }
 
   &::after {
     display: none;
   }
 
-  .more-icon {
-    width: 21px;
-
-    ::ng-deep {
-      @include apply-svg-color(pvar(--actionButtonColor));
-    }
-  }
-
-  &.small {
-    font-size: 14px;
-    height: 20px;
-    line-height: 20px;
+  &.icon-only {
+    @include button-with-icon(21px, 0, 0);
   }
 }
 
@@ -53,6 +24,8 @@
 }
 
 .dropdown-menu {
+  max-width: 75vw;
+
   .dropdown-header {
     padding: 0.2rem 1rem;
   }
@@ -60,10 +33,13 @@
   .dropdown-item {
     display: flex;
     cursor: pointer;
-    color: #000 !important;
 
     &.with-icon {
       @include dropdown-with-icon-item;
+
+      .icon-video-lang {
+        top: 0;
+      }
     }
 
     a,
@@ -72,4 +48,21 @@
       width: 100%;
     }
   }
+}
+
+.item-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 1px;
+
+  > * {
+    @include ellipsis;
+  }
+}
+
+.owner-moderator-privilege {
+  margin: 0 !important;
+  width: 13px !important;
+
+  @include margin-left(0.25rem !important);
 }

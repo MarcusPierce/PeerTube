@@ -1,5 +1,6 @@
 @use '_variables' as *;
 @use '_mixins' as *;
+@use '_icons' as *;
 @use './_player-variables' as *;
 
 $setting-transition-duration: 0.15s;
@@ -9,26 +10,6 @@ $setting-transition-easing: ease-out;
 
 .video-js {
 
-  .vjs-settings {
-    @include disable-outline;
-
-    cursor: pointer;
-    width: 33px;
-
-    .vjs-icon-placeholder {
-      display: inline-block;
-      width: 17px;
-      height: 17px;
-      vertical-align: middle;
-      background: url('#{$assets-path}/player/images/settings.svg') no-repeat;
-      background-size: contain;
-
-      &::before {
-        content: '';
-      }
-    }
-  }
-
   .vjs-settings-sub-menu-title {
     width: 4em;
     text-transform: initial;
@@ -37,11 +18,13 @@ $setting-transition-easing: ease-out;
   .vjs-settings-dialog {
     position: absolute;
     right: .5em;
-    bottom: 3.5em;
-    color: pvar(--embedForegroundColor);
+    bottom: 4em;
+    color: pvar(--embed-fg);
     opacity: $primary-foreground-opacity;
     margin: 0 auto;
     font-size: $font-size !important;
+    z-index: 100;
+    border-radius: 10px;
 
     width: auto;
     overflow: hidden;
@@ -72,11 +55,11 @@ $setting-transition-easing: ease-out;
 
     .vjs-settings-panel {
       position: absolute;
-      bottom: 0;
-      right: 0;
+
       overflow-y: auto;
       overflow-x: hidden;
-      border-radius: 1px;
+
+      @include right(0);
     }
 
     .vjs-settings-panel-child {
@@ -93,6 +76,7 @@ $setting-transition-easing: ease-out;
       > .vjs-menu {
         flex: 1;
         min-width: 200px;
+        padding: 5px 0;
       }
 
       > .vjs-menu,
@@ -106,14 +90,6 @@ $setting-transition-easing: ease-out;
           &:hover {
             cursor: pointer;
             background-color: rgba(255, 255, 255, 0.2);
-          }
-
-          &:first-child {
-            margin-top: 5px;
-          }
-
-          &:last-child {
-            margin-bottom: 5px;
           }
 
           &.disabled {
@@ -131,7 +107,6 @@ $setting-transition-easing: ease-out;
 
         .vjs-settings-sub-menu-value::after {
           @include chevron-right(9px, 2px);
-
           @include margin-left(5px);
         }
       }
@@ -143,18 +118,17 @@ $setting-transition-easing: ease-out;
           outline: 0;
           font-weight: $font-semibold;
           text-align: end;
-          padding: 5px 8px;
+          padding: 8px 15px;
 
           &.vjs-back-button {
-            padding: 8px 8px 13px 12px;
+            padding: 12px 15px;
             margin-bottom: 5px;
             border-bottom: 1px solid #808080;
             text-align: start;
 
             &::before {
               @include chevron-left(9px, 2px);
-
-              @include margin-right(5px);
+              @include margin-right(10px);
             }
           }
 
@@ -168,13 +142,13 @@ $setting-transition-easing: ease-out;
             }
 
             &::before {
-              @include icon(15px);
-
               position: absolute;
-              left: 8px;
               content: ' ';
               margin-top: 1px;
               background-image: url('#{$assets-path}/player/images/tick-white.svg');
+
+              @include icon(15px);
+              @include left(15px);
             }
           }
         }
@@ -182,15 +156,22 @@ $setting-transition-easing: ease-out;
         // Special captions case
         // Bigger caption button
         &.vjs-captions-button {
-          width: 200px;
+          min-width: 200px;
 
           .vjs-menu-item {
             text-align: start;
 
             .vjs-menu-item-text {
-              @include margin-left(25px);
               text-transform: capitalize;
+
+              @include margin-left(25px);
             }
+          }
+        }
+
+        &.vjs-resolution-button {
+          .vjs-menu-item-text {
+            @include margin-left(25px);
           }
         }
 
@@ -199,5 +180,11 @@ $setting-transition-easing: ease-out;
         }
       }
     }
+  }
+}
+
+:root[dir=rtl] {
+  .vjs-back-button::before {
+    transform: rotate(45deg) !important;
   }
 }

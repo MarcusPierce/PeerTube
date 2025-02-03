@@ -1,20 +1,17 @@
 @use '_variables' as *;
 @use '_mixins' as *;
+@use 'form-mixins' as *;
 
 .root {
   display: flex;
 
-  .form-group-checkbox {
+  label {
     display: flex;
     align-items: center;
-
-    .label-text {
-      font-weight: $font-regular;
-      margin: 0;
-    }
+    font-size: $form-input-font-size;
 
     input {
-      @include peertube-checkbox(1px);
+      @include peertube-checkbox;
     }
   }
 
@@ -23,31 +20,18 @@
   }
 
   my-help {
-    position: relative;
-    top: 2px;
+    line-height: 17px;
   }
 
-  small {
-    font-size: 90%;
+  .form-group-description {
+    margin-top: 2px;
   }
 
   .wrapper:empty {
     display: none;
   }
+}
 
-  .recommended {
-    @include margin-left(.5rem);
-
-    align-self: baseline;
-    display: inline-block;
-    padding: 4px 6px;
-    cursor: default;
-    border-radius: 3px;
-    font-size: 12px;
-    line-height: 12px;
-    font-weight: 500;
-    color: pvar(--inputPlaceholderColor);
-    background-color: rgba(217, 225, 232, .1);
-    border: 1px solid rgba(217, 225, 232, .5);
-  }
+.pt-badge {
+  height: fit-content;
 }

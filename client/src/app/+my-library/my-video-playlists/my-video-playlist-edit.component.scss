@@ -1,30 +1,21 @@
 @use '_variables' as *;
 @use '_mixins' as *;
-
-label {
-  font-weight: $font-regular;
-  font-size: 100%;
-}
-
-.video-playlist-title {
-  @include settings-big-title;
-}
+@use '_form-mixins' as *;
 
 input[type=text] {
   @include peertube-input-text(340px);
-
-  display: block;
 }
 
 .peertube-select-container {
   @include peertube-select-container(340px);
 }
 
-input[type=submit] {
-  @include peertube-button;
-  @include orange-button;
+my-select-channel,
+my-select-options {
+  display: block;
+  max-width: 340px;
 }
 
-.breadcrumb {
-  @include breadcrumb;
+.content-col {
+  max-width: 500px;;
 }

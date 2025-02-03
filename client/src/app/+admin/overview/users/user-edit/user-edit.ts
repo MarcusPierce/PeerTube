@@ -1,10 +1,10 @@
 import { Directive, OnInit } from '@angular/core'
 import { ConfigService } from '@app/+admin/config/shared/config.service'
 import { AuthService, ScreenService, ServerService, User } from '@app/core'
-import { FormReactive } from '@app/shared/shared-forms'
-import { USER_ROLE_LABELS } from '@shared/core-utils/users'
-import { HTMLServerConfig, UserAdminFlag, UserRole, VideoResolution } from '@shared/models'
+import { peertubeTranslate, USER_ROLE_LABELS } from '@peertube/peertube-core-utils'
+import { HTMLServerConfig, UserAdminFlag, UserRole } from '@peertube/peertube-models'
 import { SelectOptionsItem } from '../../../../../types/select-options-item.model'
+import { FormReactive } from '@app/shared/shared-forms/form-reactive'
 
 @Directive()
 // eslint-disable-next-line @angular-eslint/directive-class-suffix
@@ -25,7 +25,7 @@ export abstract class UserEdit extends FormReactive implements OnInit {
   abstract isCreation (): boolean
   abstract getFormButtonTitle (): string
 
-  ngOnInit (): void {
+  ngOnInit () {
     this.serverConfig = this.serverService.getHTMLConfig()
 
     this.buildRoles()
@@ -46,49 +46,42 @@ export abstract class UserEdit extends FormReactive implements OnInit {
       .concat(this.serverConfig.plugin.registeredExternalAuths.map(p => p.npmName))
   }
 
-  isInBigView () {
-    return this.screenService.getWindowInnerWidth() > 1600
-  }
-
   buildRoles () {
     const authUser = this.auth.getUser()
 
-    if (authUser.role === UserRole.ADMINISTRATOR) {
-      this.roles = Object.keys(USER_ROLE_LABELS)
-            .map(key => ({ value: key.toString(), label: USER_ROLE_LABELS[key] }))
-      return
-    }
+    this.serverService.getServerLocale()
+      .subscribe(translations => {
+        if (authUser.role.id === UserRole.ADMINISTRATOR) {
+          this.roles = Object.entries(USER_ROLE_LABELS)
+                .map(([ key, value ]) => ({ value: key.toString(), label: peertubeTranslate(value, translations) }))
+          return
+        }
 
-    this.roles = [
-      { value: UserRole.USER.toString(), label: USER_ROLE_LABELS[UserRole.USER] }
-    ]
+        this.roles = [
+          { value: UserRole.USER.toString(), label: peertubeTranslate(USER_ROLE_LABELS[UserRole.USER], translations) }
+        ]
+      })
   }
 
-  isTranscodingInformationDisplayed () {
-    const formVideoQuota = parseInt(this.form.value['videoQuota'], 10)
+  displayDangerZone () {
+    if (this.isCreation()) return false
+    if (!this.user) return false
+    if (this.user.pluginAuth) return false
+    if (this.auth.getUser().id === this.user.id) return false
 
-    return this.serverConfig.transcoding.enabledResolutions.length !== 0 &&
-           formVideoQuota > 0
-  }
-
-  computeQuotaWithTranscoding () {
-    const transcodingConfig = this.serverConfig.transcoding
-
-    const resolutions = transcodingConfig.enabledResolutions
-    const higherResolution = VideoResolution.H_4K
-    let multiplier = 0
-
-    for (const resolution of resolutions) {
-      multiplier += resolution / higherResolution
-    }
-
-    if (transcodingConfig.hls.enabled) multiplier *= 2
-
-    return multiplier * parseInt(this.form.value['videoQuota'], 10)
+    return true
   }
 
   resetPassword () {
     return
+  }
+
+  disableTwoFactorAuth () {
+    return
+  }
+
+  getUserVideoQuota () {
+    return this.form.value['videoQuota']
   }
 
   protected buildAdminFlags (formValue: any) {

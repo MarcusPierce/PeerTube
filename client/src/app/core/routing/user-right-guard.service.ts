@@ -1,12 +1,13 @@
 import { Injectable } from '@angular/core'
-import { ActivatedRouteSnapshot, CanActivate, CanActivateChild, Router, RouterStateSnapshot } from '@angular/router'
+import { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router'
 import { AuthService } from '../auth/auth.service'
+import { RedirectService } from './redirect.service'
 
 @Injectable()
-export class UserRightGuard implements CanActivate, CanActivateChild {
+export class UserRightGuard {
 
   constructor (
-    private router: Router,
+    private redirectService: RedirectService,
     private auth: AuthService
   ) {}
 
@@ -18,7 +19,11 @@ export class UserRightGuard implements CanActivate, CanActivateChild {
       if (user.hasRight(neededUserRight)) return true
     }
 
-    this.router.navigate([ '/login' ])
+    const err = new Error('') as any
+    err.status = 403
+
+    this.redirectService.replaceBy401(err)
+
     return false
   }
 

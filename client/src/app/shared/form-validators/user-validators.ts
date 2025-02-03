@@ -61,7 +61,16 @@ export const USER_EXISTING_PASSWORD_VALIDATOR: BuildFormValidator = {
   }
 }
 
-export const USER_PASSWORD_VALIDATOR: BuildFormValidator = {
+export const USER_OTP_TOKEN_VALIDATOR: BuildFormValidator = {
+  VALIDATORS: [
+    Validators.required
+  ],
+  MESSAGES: {
+    required: $localize`OTP token is required.`
+  }
+}
+
+export const USER_PASSWORD_VALIDATOR = {
   VALIDATORS: [
     Validators.required,
     Validators.minLength(6),
@@ -124,13 +133,6 @@ export const USER_DESCRIPTION_VALIDATOR: BuildFormValidator = {
   MESSAGES: {
     minlength: $localize`Description must be at least 3 characters long.`,
     maxlength: $localize`Description cannot be more than 1000 characters long.`
-  }
-}
-
-export const USER_TERMS_VALIDATOR: BuildFormValidator = {
-  VALIDATORS: [ Validators.requiredTrue ],
-  MESSAGES: {
-    required: $localize`You must agree with the instance terms in order to register on it.`
   }
 }
 

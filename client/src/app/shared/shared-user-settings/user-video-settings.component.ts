@@ -3,14 +3,32 @@ import { Subject, Subscription } from 'rxjs'
 import { first } from 'rxjs/operators'
 import { Component, Input, OnDestroy, OnInit } from '@angular/core'
 import { AuthService, Notifier, ServerService, User, UserService } from '@app/core'
-import { FormReactive, FormValidatorService } from '@app/shared/shared-forms'
-import { UserUpdateMe } from '@shared/models'
-import { NSFWPolicyType } from '@shared/models/videos/nsfw-policy.type'
+import { FormReactive } from '@app/shared/shared-forms/form-reactive'
+import { FormReactiveService } from '@app/shared/shared-forms/form-reactive.service'
+import { NSFWPolicyType, UserUpdateMe } from '@peertube/peertube-models'
+import { NgIf } from '@angular/common'
+import { RouterLink } from '@angular/router'
+import { PeertubeCheckboxComponent } from '../shared-forms/peertube-checkbox.component'
+import { SelectLanguagesComponent } from '../shared-forms/select/select-languages.component'
+import { PeerTubeTemplateDirective } from '../shared-main/common/peertube-template.directive'
+import { HelpComponent } from '../shared-main/buttons/help.component'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
 
 @Component({
   selector: 'my-user-video-settings',
   templateUrl: './user-video-settings.component.html',
-  styleUrls: [ './user-video-settings.component.scss' ]
+  styleUrls: [ './user-video-settings.component.scss' ],
+  standalone: true,
+  imports: [
+    FormsModule,
+    ReactiveFormsModule,
+    HelpComponent,
+    PeerTubeTemplateDirective,
+    SelectLanguagesComponent,
+    PeertubeCheckboxComponent,
+    RouterLink,
+    NgIf
+  ]
 })
 export class UserVideoSettingsComponent extends FormReactive implements OnInit, OnDestroy {
   @Input() user: User = null
@@ -22,7 +40,7 @@ export class UserVideoSettingsComponent extends FormReactive implements OnInit, 
   formValuesWatcher: Subscription
 
   constructor (
-    protected formValidatorService: FormValidatorService,
+    protected formReactiveService: FormReactiveService,
     private authService: AuthService,
     private notifier: Notifier,
     private userService: UserService,
@@ -34,7 +52,7 @@ export class UserVideoSettingsComponent extends FormReactive implements OnInit, 
   ngOnInit () {
     this.buildForm({
       nsfwPolicy: null,
-      webTorrentEnabled: null,
+      p2pEnabled: null,
       autoPlayVideo: null,
       autoPlayNextVideo: null,
       videoLanguages: null
@@ -48,7 +66,7 @@ export class UserVideoSettingsComponent extends FormReactive implements OnInit, 
 
           this.form.patchValue({
             nsfwPolicy: this.user.nsfwPolicy || this.defaultNSFWPolicy,
-            webTorrentEnabled: this.user.webTorrentEnabled,
+            p2pEnabled: this.user.p2pEnabled,
             autoPlayVideo: this.user.autoPlayVideo === true,
             autoPlayNextVideo: this.user.autoPlayNextVideo,
             videoLanguages: this.user.videoLanguages
@@ -65,7 +83,7 @@ export class UserVideoSettingsComponent extends FormReactive implements OnInit, 
 
   updateDetails (onlyKeys?: string[]) {
     const nsfwPolicy = this.form.value['nsfwPolicy']
-    const webTorrentEnabled = this.form.value['webTorrentEnabled']
+    const p2pEnabled = this.form.value['p2pEnabled']
     const autoPlayVideo = this.form.value['autoPlayVideo']
     const autoPlayNextVideo = this.form.value['autoPlayNextVideo']
 
@@ -80,7 +98,7 @@ export class UserVideoSettingsComponent extends FormReactive implements OnInit, 
 
     let details: UserUpdateMe = {
       nsfwPolicy,
-      webTorrentEnabled,
+      p2pEnabled,
       autoPlayVideo,
       autoPlayNextVideo,
       videoLanguages
@@ -127,6 +145,9 @@ export class UserVideoSettingsComponent extends FormReactive implements OnInit, 
 
   private updateAnonymousProfile (details: UserUpdateMe) {
     this.userService.updateMyAnonymousProfile(details)
-    if (this.notifyOnUpdate) this.notifier.success($localize`Display/Video settings updated.`)
+
+    if (this.notifyOnUpdate) {
+      this.notifier.success($localize`Display/Video settings updated.`)
+    }
   }
 }

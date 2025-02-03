@@ -59,7 +59,7 @@ export const config = {
   // with `/`, the base url gets prepended, not including the path portion of your baseUrl.
   // If your `url` parameter starts without a scheme or `/` (like `some/path`), the base url
   // gets prepended directly.
-  baseUrl: 'http://localhost:9001',
+  baseUrl: 'http://127.0.0.1:9001',
   //
   // Default timeout for all waitFor* commands.
   waitforTimeout: 5000,
@@ -80,7 +80,7 @@ export const config = {
   framework: 'mocha',
   //
   // The number of times to retry the entire specfile when it fails as a whole
-  specFileRetries: 1,
+  specFileRetries: 2,
   //
   // Delay in seconds between the spec file retry attempts
   // specFileRetriesDelay: 0,
@@ -98,7 +98,8 @@ export const config = {
   // See the full list at http://mochajs.org/
   mochaOpts: {
     ui: 'bdd',
-    timeout: 60000
+    timeout: 60000,
+    bail: true
   },
 
   autoCompileOpts: {
@@ -106,19 +107,10 @@ export const config = {
 
     tsNodeOpts: {
       project: require('path').join(__dirname, './tsconfig.json')
-    },
-
-    tsConfigPathsOpts: {
-      baseUrl: './',
-      paths: {
-        '@server/*': [ '../../server/*' ],
-        '@shared/*': [ '../../shared/*' ]
-      }
     }
   },
 
   before: function () {
-    require('expect-webdriverio')
     require('./src/commands/upload')
   }
 } as Partial<WebdriverIO.Config>

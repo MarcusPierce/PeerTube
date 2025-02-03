@@ -2,15 +2,14 @@
 @use '_mixins' as *;
 
 .root-comment {
-  font-size: 15px;
   display: flex;
 
   .left {
-    @include margin-right(10px);
-
     display: flex;
     flex-direction: column;
     align-items: center;
+
+    @include margin-right(10px);
 
     .vertical-border {
       width: 2px;
@@ -25,10 +24,6 @@
   }
 }
 
-my-actor-avatar {
-  @include actor-avatar-size(36px);
-}
-
 .comment {
   flex-grow: 1;
   // Fix word-wrap with flex
@@ -37,8 +32,8 @@ my-actor-avatar {
 
 .highlighted-comment {
   display: inline-block;
-  background-color: #F5F5F5;
-  color: #3d3d3d;
+  background-color: pvar(--bg-secondary-400);
+  color: pvar(--fg);
   padding: 0 5px;
   font-size: 13px;
   margin-bottom: 5px;
@@ -52,11 +47,9 @@ my-actor-avatar {
 }
 
 .video-author {
-  @include padding-right(6px);
-  @include padding-left(6px);
-
   height: 20px;
-  background-color: #888888;
+  background-color: pvar(--bg-secondary-400);
+  color: pvar(--fg);
   border-radius: 12px;
   margin-bottom: 2px;
   max-width: 100%;
@@ -64,7 +57,9 @@ my-actor-avatar {
   flex-direction: row;
   align-items: center;
   display: inline-flex;
-  color: #fff !important;
+
+  @include padding-right(6px);
+  @include padding-left(6px);
 }
 
 .comment-account {
@@ -73,9 +68,9 @@ my-actor-avatar {
   font-size: 90%;
 
   a {
-    @include disable-default-a-behaviour;
+    color: pvar(--fg);
 
-    color: pvar(--mainForegroundColor);
+    @include disable-default-a-behaviour;
 
     &:hover {
       text-decoration: underline;
@@ -83,16 +78,16 @@ my-actor-avatar {
   }
 
   .comment-account-fid {
-    opacity: .6;
+    color: pvar(--fg-300);
   }
 }
 
 .comment-date {
-  @include margin-left(5px);
-
   font-size: 90%;
-  color: pvar(--greyForegroundColor);
+  color: pvar(--fg-300);
   text-decoration: none;
+
+  @include margin-left(5px);
 
   &:hover {
     text-decoration: underline;
@@ -106,11 +101,11 @@ my-actor-avatar {
   ::ng-deep a {
 
     &:not(.linkified-url) {
-      @include disable-default-a-behaviour;
-
-      color: pvar(--mainForegroundColor);
+      color: pvar(--fg);
 
       font-weight: $font-semibold;
+
+      @include disable-default-a-behaviour;
     }
 
   }
@@ -121,7 +116,7 @@ my-actor-avatar {
   }
 
   &.comment-html-deleted {
-    color: pvar(--greyForegroundColor);
+    color: pvar(--fg-300);
     margin-bottom: 1rem;
   }
 }
@@ -132,16 +127,16 @@ my-actor-avatar {
 
   ::ng-deep .dropdown-toggle,
   .comment-action-reply {
-    @include margin-right(10px);
-
-    color: pvar(--greyForegroundColor);
+    color: pvar(--fg-300);
     cursor: pointer;
+
+    @include margin-right(10px);
 
     &:hover,
     &:active,
     &:focus,
     &:focus-visible {
-      color: pvar(--mainForegroundColor);
+      color: pvar(--fg);
     }
   }
 
@@ -160,11 +155,6 @@ my-video-comment-add {
 }
 
 .is-child {
-  // Reduce avatars size for replies
-  my-actor-avatar {
-    @include actor-avatar-size(25px);
-  }
-
   .left {
     @include margin-right(6px);
   }

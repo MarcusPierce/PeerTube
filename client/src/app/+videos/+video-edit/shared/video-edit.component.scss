@@ -1,28 +1,18 @@
 @use '_variables' as *;
 @use '_mixins' as *;
-
-label,
-my-dynamic-form-field ::ng-deep label {
-  font-weight: $font-regular;
-  font-size: 100%;
-}
+@use '_form-mixins' as *;
 
 .peertube-select-container {
   @include peertube-select-container(auto);
 }
 
-.title-page a {
-  color: pvar(--mainForegroundColor);
-
-  &:hover {
-    text-decoration: none;
-    opacity: .8;
-  }
-}
-
 my-peertube-checkbox {
   display: block;
   margin-bottom: 1rem;
+}
+
+my-timestamp-input {
+  width: 100px;
 }
 
 .nav-tabs {
@@ -33,43 +23,23 @@ my-peertube-checkbox {
   height: 100%;
   min-height: 300px;
 
-  .form-group {
-    margin-bottom: 25px;
-  }
-
   input {
-    @include peertube-input-text(100%);
     display: block;
+
+    @include peertube-input-text(100%);
   }
-
-  .label-tags + span {
-    font-size: 15px;
-  }
-
-  .advanced-settings .form-group {
-    margin-bottom: 20px;
-  }
-}
-
-.captions-header {
-  text-align: end;
-  margin-bottom: 1rem;
-}
-
-.create-caption {
-  @include create-button;
 }
 
 .caption-entry {
   display: flex;
-  height: 40px;
+  min-height: 40px;
   align-items: center;
+  flex-wrap: wrap;
 
   a.caption-entry-label {
-    @include disable-default-a-behaviour;
+    color: pvar(--fg);
 
-    flex-grow: 1;
-    color: #000;
+    @include disable-default-a-behaviour;
 
     &:hover {
       opacity: 0.8;
@@ -77,45 +47,31 @@ my-peertube-checkbox {
   }
 
   .caption-entry-label {
-    @include margin-right(20px);
-
-    font-size: 15px;
     font-weight: bold;
-    width: 150px;
+    min-width: 100px;
+
+    @include margin-right(20px);
   }
 
   .caption-entry-state {
-    width: 200px;
+    min-width: 250px;
 
-    &.caption-entry-state-create {
-      color: #39CC0B;
-    }
-
-    &.caption-entry-state-delete {
-      color: #FF0000;
-    }
-  }
-
-  .caption-entry-delete {
-    @include peertube-button;
-    @include grey-button;
+    @include margin-right(15px);
   }
 }
 
 .no-caption {
   text-align: center;
-  font-size: 15px;
 }
 
 .submit-container {
   text-align: end;
 
   .message-submit {
-    @include margin-right(25px);
-
     display: inline-block;
-    color: pvar(--greyForegroundColor);
-    font-size: 15px;
+    color: pvar(--fg-300);
+
+    @include margin-right(25px);
   }
 }
 
@@ -126,11 +82,6 @@ p-calendar {
     .p-calendar {
       width: 100%;
     }
-
-    .p-inputtext {
-      @include peertube-input-text(100%);
-      color: #000;
-    }
   }
 }
 
@@ -139,6 +90,38 @@ p-calendar {
 
   grid-template-columns: 66% 1fr;
   grid-gap: 30px;
+}
+
+.col-video-edit {
+  max-width: 100%;
+  min-width: 1px;
+}
+
+.hide-chapter-label {
+  height: 0;
+  opacity: 0;
+}
+
+.chapter {
+  display: grid;
+  grid-template-columns: auto auto minmax(150px, 350px) 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 1rem;
+
+  .position {
+    height: 38px;
+    min-width: 16px;
+    display: flex;
+    align-items: center;
+  }
+
+  my-delete-button {
+    width: fit-content;
+  }
+
+  .form-error {
+    margin-top: 0;
+  }
 }
 
 @include on-small-main-col {

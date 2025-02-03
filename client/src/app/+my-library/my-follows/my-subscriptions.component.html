@@ -1,12 +1,6 @@
-<h1>
-  <span>
-    <my-global-icon iconName="subscriptions" aria-hidden="true"></my-global-icon>
-    <ng-container i18n>My subscriptions</ng-container>
-    <span class="badge badge-secondary"> {{ pagination.totalItems }}</span>
-  </span>
-</h1>
+<div class="mb-4 d-flex justify-content-between align-items-end gap-2 flex-wrap">
+  <span class="total-items" *ngIf="pagination.totalItems"> {{ getTotalTitle() }}</span>
 
-<div class="video-subscriptions-header">
   <my-advanced-input-filter (search)="onSearch($event)"></my-advanced-input-filter>
 </div>
 
@@ -14,7 +8,7 @@
 
 <div class="actors" myInfiniteScroller (nearOfBottom)="onNearOfBottom()" [dataObservable]="onDataSubject.asObservable()">
   <div *ngFor="let videoChannel of videoChannels" class="actor">
-    <my-actor-avatar [channel]="videoChannel" [internalHref]="[ '/c', videoChannel.nameWithHost ]"></my-actor-avatar>
+    <my-actor-avatar [actor]="videoChannel" actorType="channel" [internalHref]="[ '/c', videoChannel.nameWithHost ]" size="80"></my-actor-avatar>
 
     <div class="actor-info">
       <a [routerLink]="[ '/c', videoChannel.nameWithHost ]" class="actor-names" i18n-title title="Channel page">
@@ -27,7 +21,7 @@
       <a [routerLink]="[ '/a', videoChannel.ownerBy ]" i18n-title title="Owner account page" class="actor-owner">
         <span i18n>Created by {{ videoChannel.ownerBy }}</span>
 
-        <my-actor-avatar [account]="videoChannel.ownerAccount" size="18"></my-actor-avatar>
+        <my-actor-avatar [actor]="videoChannel.ownerAccount" actorType="account" size="18"></my-actor-avatar>
       </a>
     </div>
 

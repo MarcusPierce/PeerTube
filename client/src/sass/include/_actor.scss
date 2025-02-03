@@ -1,12 +1,10 @@
 @use '_variables' as *;
 @use '_mixins' as *;
 
-@mixin actor-row ($avatar-size: 80px, $avatar-margin-right: 10px, $min-height: 130px, $separator: true) {
+@mixin actor-row ($avatar-margin-right: 10px, $min-height: 130px, $separator: true) {
   @include row-blocks($min-height: $min-height, $separator: $separator);
 
   > my-actor-avatar {
-    @include actor-avatar-size($avatar-size);
-
     @include margin-right($avatar-margin-right);
   }
 
@@ -15,12 +13,12 @@
   }
 
   .actor-names {
-    @include disable-default-a-behaviour;
-
     width: fit-content;
     display: flex;
     align-items: baseline;
-    color: pvar(--mainForegroundColor);
+    color: pvar(--fg);
+
+    @include disable-default-a-behaviour;
   }
 
   .actor-display-name {
@@ -29,27 +27,25 @@
   }
 
   .actor-name {
-    @include margin-left(5px);
-
     font-size: 14px;
-    color: $grey-actor-name;
+    color: pvar(--fg-300);
+
+    @include margin-left(5px);
   }
 
   .actor-owner {
-    @include disable-default-a-behaviour;
+    color: pvar(--fg);
+    display: flex;
+    align-items: center;
 
-    font-size: 13px;
-    color: pvar(--mainForegroundColor);
+    @include disable-default-a-behaviour;
 
     span:hover {
       opacity: 0.8;
     }
 
     my-actor-avatar {
-      @include margin-left(7px);
-
-      display: inline-block;
-      vertical-align: top;
+      @include margin-left(5px);
     }
   }
 

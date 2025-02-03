@@ -3,12 +3,13 @@ import { CustomMarkupService } from './custom-markup.service'
 
 @Component({
   selector: 'my-custom-markup-container',
-  templateUrl: './custom-markup-container.component.html'
+  templateUrl: './custom-markup-container.component.html',
+  standalone: true
 })
 export class CustomMarkupContainerComponent implements OnChanges {
-  @ViewChild('contentWrapper') contentWrapper: ElementRef<HTMLInputElement>
+  @ViewChild('contentWrapper', { static: true }) contentWrapper: ElementRef<HTMLInputElement>
 
-  @Input() content: string
+  @Input() content: string | HTMLDivElement
 
   displayed = false
 
@@ -17,16 +18,22 @@ export class CustomMarkupContainerComponent implements OnChanges {
   ) { }
 
   async ngOnChanges () {
-    await this.buildElement()
+    await this.rebuild()
   }
 
-  private async buildElement () {
-    if (!this.content) return
+  private async rebuild () {
+    if (this.content instanceof HTMLDivElement) {
+      return this.loadElement(this.content)
+    }
 
     const { rootElement, componentsLoaded } = await this.customMarkupService.buildElement(this.content)
-    this.contentWrapper.nativeElement.appendChild(rootElement)
-
     await componentsLoaded
+
+    return this.loadElement(rootElement)
+  }
+
+  private loadElement (el: HTMLDivElement) {
+    this.contentWrapper.nativeElement.appendChild(el)
 
     this.displayed = true
   }

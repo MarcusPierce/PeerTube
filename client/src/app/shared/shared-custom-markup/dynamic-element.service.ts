@@ -1,7 +1,7 @@
 import {
   ApplicationRef,
-  ComponentFactoryResolver,
   ComponentRef,
+  createComponent,
   EmbeddedViewRef,
   Injectable,
   Injector,
@@ -10,23 +10,32 @@ import {
   SimpleChanges,
   Type
 } from '@angular/core'
+import { objectKeysTyped } from '@peertube/peertube-core-utils'
+import { CustomMarkupComponent } from './peertube-custom-tags/shared'
+import { firstValueFrom } from 'rxjs'
 
 @Injectable()
 export class DynamicElementService {
 
   constructor (
     private injector: Injector,
-    private applicationRef: ApplicationRef,
-    private componentFactoryResolver: ComponentFactoryResolver
+    private applicationRef: ApplicationRef
   ) { }
 
-  createElement <T> (ofComponent: Type<T>) {
+  createElement <T extends CustomMarkupComponent> (ofComponent: Type<T>) {
     const div = document.createElement('div')
 
-    const component = this.componentFactoryResolver.resolveComponentFactory(ofComponent)
-      .create(this.injector, [], div)
+    const component = createComponent(ofComponent, {
+      environmentInjector: this.applicationRef.injector,
+      elementInjector: this.injector,
+      hostElement: div
+    })
 
-    return component
+    const loadedPromise = component.instance.loaded
+      ? firstValueFrom(component.instance.loaded)
+      : undefined
+
+    return { component, loadedPromise }
   }
 
   injectElement <T> (wrapper: HTMLElement, componentRef: ComponentRef<T>) {
@@ -39,12 +48,12 @@ export class DynamicElementService {
   setModel <T> (componentRef: ComponentRef<T>, attributes: Partial<T>) {
     const changes: SimpleChanges = {}
 
-    for (const key of Object.keys(attributes)) {
+    for (const key of objectKeysTyped(attributes)) {
       const previousValue = componentRef.instance[key]
       const newValue = attributes[key]
 
       componentRef.instance[key] = newValue
-      changes[key] = new SimpleChange(previousValue, newValue, previousValue === undefined)
+      changes[key as string] = new SimpleChange(previousValue, newValue, previousValue === undefined)
     }
 
     const component = componentRef.instance

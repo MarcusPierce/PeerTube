@@ -1,11 +1,12 @@
 import { Routes } from '@angular/router'
 import { UserRightGuard } from '@app/core'
-import { UserRight } from '@shared/models'
+import { UserRight } from '@peertube/peertube-models'
 import { DebugComponent } from './debug'
 import { JobsComponent } from './jobs/jobs.component'
 import { LogsComponent } from './logs'
+import { RunnersRoutes } from './runners'
 
-export const SystemRoutes: Routes = [
+export const systemRoutes: Routes = [
   {
     path: 'system',
     children: [
@@ -46,7 +47,9 @@ export const SystemRoutes: Routes = [
             title: $localize`Debug`
           }
         }
-      }
+      },
+
+      ...RunnersRoutes
     ]
   }
 ]

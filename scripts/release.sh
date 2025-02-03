@@ -26,11 +26,16 @@ fi
 
 maintainer_public_key=${MAINTAINER_GPG:-"583A612D890159BE"}
 
+peertube_directory=$(basename $(pwd))
+
 branch=$(git symbolic-ref --short -q HEAD)
 if [ "$branch" != "develop" ] && [[ "$branch" != release/* ]]; then
   echo "Need to be on develop or release branch."
   exit -1
 fi
+
+yarn check --integrity --verify-tree
+(cd client && yarn check --integrity --verify-tree)
 
 version="v$1"
 github_prerelease_option=""
@@ -67,26 +72,40 @@ npm run build -- --source-map
 rm -f "./client/dist/en-US/stats.json"
 rm -f "./client/dist/embed-stats.json"
 
+# Clean up declaration files
+find dist/ packages/core-utils/dist/ \
+  packages/ffmpeg/dist/ \
+  packages/node-utils/dist/ \
+  packages/models/dist/ \
+  \( -name '*.d.ts' -o -name '*.d.ts.map' \) -type f -delete
+
 # Creating the archives
 (
   # local variables
   directories_to_archive=("$directory_name/CREDITS.md" "$directory_name/FAQ.md" \
                           "$directory_name/LICENSE" "$directory_name/README.md" \
+                          "$directory_name/packages/core-utils/dist/" "$directory_name/packages/core-utils/package.json" \
+                          "$directory_name/packages/ffmpeg/dist/" "$directory_name/packages/ffmpeg/package.json" \
+                          "$directory_name/packages/node-utils/dist/" "$directory_name/packages/node-utils/package.json" \
+                          "$directory_name/packages/models/dist/" "$directory_name/packages/models/package.json" \
+                          "$directory_name/packages/transcription/dist/" "$directory_name/packages/transcription/package.json" \
                           "$directory_name/client/dist/" "$directory_name/client/yarn.lock" \
                           "$directory_name/client/package.json" "$directory_name/config" \
                           "$directory_name/dist" "$directory_name/package.json" \
-                          "$directory_name/scripts" "$directory_name/support" \
-                          "$directory_name/tsconfig.json" "$directory_name/yarn.lock")
+                          "$directory_name/scripts/upgrade.sh" "$directory_name/support/doc" "$directory_name/support/freebsd" \
+                          "$directory_name/support/init.d" "$directory_name/support/nginx" "$directory_name/support/openapi" \
+                          "$directory_name/support/sysctl.d" "$directory_name/support/systemd" \
+                          "$directory_name/yarn.lock")
 
   # temporary setup
   cd ..
-  ln -s "PeerTube" "$directory_name"
+  ln -s "$peertube_directory" "$directory_name"
 
   # archive creation + signing
-  zip -9 -r "PeerTube/$zip_name" "${directories_to_archive[@]}"
-  gpg --armor --detach-sign -u "$maintainer_public_key" "PeerTube/$zip_name"
-  XZ_OPT="-e9 -T0" tar cfJ "PeerTube/$tar_name" "${directories_to_archive[@]}"
-  gpg --armor --detach-sign -u "$maintainer_public_key" "PeerTube/$tar_name"
+  zip -9 -r "$peertube_directory/$zip_name" "${directories_to_archive[@]}"
+  gpg --armor --detach-sign -u "$maintainer_public_key" "$peertube_directory/$zip_name"
+  XZ_OPT="-e9 -T0" tar cfJ "$peertube_directory/$tar_name" "${directories_to_archive[@]}"
+  gpg --armor --detach-sign -u "$maintainer_public_key" "$peertube_directory/$tar_name"
 
   # temporary setup destruction
   rm "$directory_name"
@@ -102,6 +121,9 @@ rm -f "./client/dist/embed-stats.json"
     github-release release --user chocobozzz --repo peertube --tag "$version" --name "$version" --description "$changelog" "$github_prerelease_option"
   fi
 
+  # Wait for the release to be published, we had some issues when the files were not uploaded because of "unknown release" error
+  sleep 2
+
   github-release upload --user chocobozzz --repo peertube --tag "$version" --name "$zip_name" --file "$zip_name"
   github-release upload --user chocobozzz --repo peertube --tag "$version" --name "$zip_name.asc" --file "$zip_name.asc"
   github-release upload --user chocobozzz --repo peertube --tag "$version" --name "$tar_name" --file "$tar_name"
@@ -116,5 +138,12 @@ rm -f "./client/dist/embed-stats.json"
       git merge "$branch"
       git push origin master
       git checkout "$branch"
+
+      # Rebuild properly the server, with the declaration files
+      npm run build:server
+      # Release types package
+      npm run generate-types-package "$version"
+      cd packages/types-generator/dist
+      npm publish --access public
   fi
 )

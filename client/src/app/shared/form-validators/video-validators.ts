@@ -26,6 +26,15 @@ export const VIDEO_PRIVACY_VALIDATOR: BuildFormValidator = {
   }
 }
 
+export const VIDEO_PASSWORD_VALIDATOR: BuildFormValidator = {
+  VALIDATORS: [ Validators.minLength(2), Validators.maxLength(100) ], // Required is set dynamically
+  MESSAGES: {
+    minLength: $localize`A password should be at least 2 characters long.`,
+    maxLength: $localize`A password should be shorter than 100 characters long.`,
+    required: $localize`A password is required for password protected video.`
+  }
+}
+
 export const VIDEO_CATEGORY_VALIDATOR: BuildFormValidator = {
   VALIDATORS: [ ],
   MESSAGES: {}
@@ -61,14 +70,6 @@ export const VIDEO_DESCRIPTION_VALIDATOR: BuildFormValidator = {
   }
 }
 
-export const VIDEO_TAG_VALIDATOR: BuildFormValidator = {
-  VALIDATORS: [ Validators.minLength(2), Validators.maxLength(30) ],
-  MESSAGES: {
-    minlength: $localize`A tag should be more than 2 characters long.`,
-    maxlength: $localize`A tag should be less than 30 characters long.`
-  }
-}
-
 export const VIDEO_TAGS_ARRAY_VALIDATOR: BuildFormValidator = {
   VALIDATORS: [ Validators.maxLength(5), arrayTagLengthValidator() ],
   MESSAGES: {
@@ -99,7 +100,7 @@ export const VIDEO_ORIGINALLY_PUBLISHED_AT_VALIDATOR: BuildFormValidator = {
 
 function arrayTagLengthValidator (min = 2, max = 30): ValidatorFn {
   return (control: AbstractControl): ValidationErrors => {
-    const array = control.value as Array<string>
+    const array = control.value as string[]
 
     if (array.every(e => e.length >= min && e.length <= max)) {
       return null

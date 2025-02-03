@@ -1,4 +1,4 @@
-import { browserSleep, go } from '../utils'
+import { browserSleep, getCheckbox, go, isCheckboxSelected } from '../utils'
 
 export class AdminConfigPage {
 
@@ -8,22 +8,58 @@ export class AdminConfigPage {
       'basic-configuration': 'APPEARANCE',
       'instance-information': 'INSTANCE'
     }
+    await go('/admin/settings/config/edit-custom#' + tab)
 
-    await go('/admin/config/edit-custom#' + tab)
-
-    await $('.inner-form-title=' + waitTitles[tab]).waitForDisplayed()
+    await $('h2=' + waitTitles[tab]).waitForDisplayed()
   }
 
-  updateNSFWSetting (newValue: 'do_not_list' | 'blur' | 'display') {
-    return $('#instanceDefaultNSFWPolicy').selectByAttribute('value', newValue)
+  async updateNSFWSetting (newValue: 'do_not_list' | 'blur' | 'display') {
+    const elem = $('#instanceDefaultNSFWPolicy')
+
+    await elem.waitForDisplayed()
+    await elem.scrollIntoView({ block: 'center' }) // Avoid issues with fixed header
+    await elem.waitForClickable()
+
+    return elem.selectByAttribute('value', newValue)
   }
 
   updateHomepage (newValue: string) {
     return $('#instanceCustomHomepageContent').setValue(newValue)
   }
 
+  async toggleSignup (enabled: boolean) {
+    if (await isCheckboxSelected('signupEnabled') === enabled) return
+
+    const checkbox = await getCheckbox('signupEnabled')
+
+    await checkbox.waitForClickable()
+    await checkbox.click()
+  }
+
+  async toggleSignupApproval (required: boolean) {
+    if (await isCheckboxSelected('signupRequiresApproval') === required) return
+
+    const checkbox = await getCheckbox('signupRequiresApproval')
+
+    await checkbox.waitForClickable()
+    await checkbox.click()
+  }
+
+  async toggleSignupEmailVerification (required: boolean) {
+    if (await isCheckboxSelected('signupRequiresEmailVerification') === required) return
+
+    const checkbox = await getCheckbox('signupRequiresEmailVerification')
+
+    await checkbox.waitForClickable()
+    await checkbox.click()
+  }
+
   async save () {
-    await $('input[type=submit]').click()
-    await browserSleep(200)
+    const button = $('input[type=submit]')
+
+    await button.waitForClickable()
+    await button.click()
+
+    await browserSleep(1000)
   }
 }
