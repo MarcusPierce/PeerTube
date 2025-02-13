@@ -1,9 +1,12 @@
-import { Component, ElementRef, EventEmitter, Input, OnInit, Output, ViewChild } from '@angular/core'
+import { Component, ElementRef, EventEmitter, Input, OnChanges, OnInit, Output, ViewChild, booleanAttribute } from '@angular/core'
 import { Notifier, ServerService } from '@app/core'
-import { Account, VideoChannel } from '@app/shared/shared-main'
-import { NgbPopover } from '@ng-bootstrap/ng-bootstrap'
 import { getBytes } from '@root-helpers/bytes'
 import { imageToDataURL } from '@root-helpers/images'
+import { ActorAvatarInput, ActorAvatarComponent } from '../shared-actor-image/actor-avatar.component'
+import { ActorImage } from '@peertube/peertube-models'
+import { GlobalIconComponent } from '../shared-icons/global-icon.component'
+import { NgbTooltip, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu } from '@ng-bootstrap/ng-bootstrap'
+import { NgIf } from '@angular/common'
 
 @Component({
   selector: 'my-actor-avatar-edit',
@@ -11,17 +14,22 @@ import { imageToDataURL } from '@root-helpers/images'
   styleUrls: [
     './actor-image-edit.scss',
     './actor-avatar-edit.component.scss'
-  ]
+  ],
+  imports: [ NgIf, ActorAvatarComponent, NgbTooltip, GlobalIconComponent, NgbDropdown, NgbDropdownToggle, NgbDropdownMenu ]
 })
-export class ActorAvatarEditComponent implements OnInit {
+export class ActorAvatarEditComponent implements OnInit, OnChanges {
   @ViewChild('avatarfileInput') avatarfileInput: ElementRef<HTMLInputElement>
-  @ViewChild('avatarPopover') avatarPopover: NgbPopover
 
-  @Input() actor: VideoChannel | Account
-  @Input() editable = true
-  @Input() displaySubscribers = true
-  @Input() displayUsername = true
-  @Input() previewImage = false
+  @Input({ required: true }) actorType: 'channel' | 'account'
+  @Input({ required: true }) avatars: ActorImage[]
+  @Input({ required: true }) username: string
+
+  @Input() displayName: string
+  @Input() subscribers: number
+
+  @Input({ transform: booleanAttribute }) displayUsername = true
+  @Input({ transform: booleanAttribute }) editable = true
+  @Input({ transform: booleanAttribute }) previewImage = false
 
   @Output() avatarChange = new EventEmitter<FormData>()
   @Output() avatarDelete = new EventEmitter<void>()
@@ -31,6 +39,8 @@ export class ActorAvatarEditComponent implements OnInit {
   avatarExtensions = ''
 
   preview: string
+
+  actor: ActorAvatarInput
 
   constructor (
     private serverService: ServerService,
@@ -43,8 +53,14 @@ export class ActorAvatarEditComponent implements OnInit {
     this.maxAvatarSize = config.avatar.file.size.max
     this.avatarExtensions = config.avatar.file.extensions.join(', ')
 
-    this.avatarFormat = `${$localize`max size`}: 192*192px, ` +
-                        `${getBytes(this.maxAvatarSize)} ${$localize`extensions`}: ${this.avatarExtensions}`
+    this.avatarFormat = $localize`max size: 192*192px, ${getBytes(this.maxAvatarSize)} extensions: ${this.avatarExtensions}`
+  }
+
+  ngOnChanges () {
+    this.actor = {
+      avatars: this.avatars,
+      name: this.username
+    }
   }
 
   onAvatarChange (input: HTMLInputElement) {
@@ -58,7 +74,6 @@ export class ActorAvatarEditComponent implements OnInit {
 
     const formData = new FormData()
     formData.append('avatarfile', avatarfile)
-    this.avatarPopover?.close()
     this.avatarChange.emit(formData)
 
     if (this.previewImage) {
@@ -72,22 +87,6 @@ export class ActorAvatarEditComponent implements OnInit {
   }
 
   hasAvatar () {
-    return !!this.preview || !!this.actor.avatar
-  }
-
-  isChannel () {
-    return !!(this.actor as VideoChannel).ownerAccount
-  }
-
-  getChannel (): VideoChannel {
-    if (this.isChannel()) return this.actor as VideoChannel
-
-    return undefined
-  }
-
-  getAccount (): Account {
-    if (this.isChannel()) return undefined
-
-    return this.actor as Account
+    return !!this.preview || this.avatars.length !== 0
   }
 }

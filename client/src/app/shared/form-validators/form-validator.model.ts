@@ -1,7 +1,9 @@
-import { ValidatorFn } from '@angular/forms'
+import { AsyncValidatorFn, ValidatorFn } from '@angular/forms'
 
 export type BuildFormValidator = {
   VALIDATORS: ValidatorFn[]
+  ASYNC_VALIDATORS?: AsyncValidatorFn[]
+
   MESSAGES: { [ name: string ]: string }
 }
 
@@ -10,5 +12,5 @@ export type BuildFormArgument = {
 }
 
 export type BuildFormDefaultValues = {
-  [ name: string ]: number | string | string[] | BuildFormDefaultValues
+  [ name: string ]: boolean | number | string | string[] | BuildFormDefaultValues
 }

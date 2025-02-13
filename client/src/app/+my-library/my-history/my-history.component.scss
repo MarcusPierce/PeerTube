@@ -1,12 +1,12 @@
 @use '_variables' as *;
 @use '_mixins' as *;
+@use '_form-mixins' as *;
 
 .no-history {
   display: flex;
   justify-content: center;
   margin-top: 50px;
   font-weight: $font-semibold;
-  font-size: 16px;
 }
 
 .top-buttons {
@@ -24,33 +24,32 @@
   }
 
   .history-switch {
+    grid-column: 3;
+    display: flex;
+    align-items: center;
+
     @include margin-left(auto);
     @include margin-right(15px);
 
-    grid-column: 3;
-    display: flex;
-
     label {
       margin: 0 0 0 5px;
-      color: var(--greyForegroundColor);
-      font-size: 15px;
+      color: pvar(--fg-400);
       font-weight: $font-semibold;
     }
   }
 
   .delete-history {
-    @include peertube-button;
-    @include grey-button;
-    @include button-with-icon;
-
     grid-column: 4;
-
-    font-size: 15px;
   }
 }
 
 .video {
   @include row-blocks($column-responsive: false);
+}
+
+.action-button {
+  display: flex;
+  align-self: flex-end;
 }
 
 @media screen and (max-width: $small-view) {

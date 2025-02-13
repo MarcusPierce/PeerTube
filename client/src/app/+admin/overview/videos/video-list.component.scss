@@ -1,21 +1,38 @@
 @use '_variables' as *;
 @use '_mixins' as *;
+
 my-embed {
   display: block;
   max-width: 500px;
   width: 50%;
 }
 
-.badge {
-  @include peertube-badge;
-
-  margin-right: 5px;
+.pt-badge {
+  @include margin-right(5px);
 }
 
 .video-info > div {
   display: flex;
+
+  my-global-icon {
+    position: relative;
+    top: -2px;
+
+    @include global-icon-size(16px);
+    @include margin-left(3px);
+  }
 }
 
 .loading {
   opacity: 0.5;
+}
+
+.right-form {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+
+  > *:not(:last-child) {
+    @include margin-right(10px);
+  }
 }

@@ -4,8 +4,7 @@ import { HTTP_INTERCEPTORS, HttpErrorResponse, HttpEvent, HttpHandler, HttpInter
 import { Injectable, Injector } from '@angular/core'
 import { Router } from '@angular/router'
 import { AuthService } from '@app/core/auth/auth.service'
-import { HttpStatusCode } from '@shared/models'
-import { OAuth2ErrorCode, PeerTubeProblemDocument } from '@shared/models/server'
+import { HttpStatusCode, OAuth2ErrorCode, PeerTubeProblemDocument, ServerErrorCode } from '@peertube/peertube-models'
 
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
@@ -24,21 +23,28 @@ export class AuthInterceptor implements HttpInterceptor {
     // Pass on the cloned request instead of the original request
     // Catch 401 errors (refresh token expired)
     return next.handle(authReq)
-               .pipe(
-                 catchError((err: HttpErrorResponse) => {
-                   const error = err.error as PeerTubeProblemDocument
+      .pipe(
+        catchError((err: HttpErrorResponse) => {
+          const error = err.error as PeerTubeProblemDocument
+          const isOTPMissingError = this.authService.isOTPMissingError(err)
 
-                   if (err.status === HttpStatusCode.UNAUTHORIZED_401 && error && error.code === OAuth2ErrorCode.INVALID_TOKEN) {
-                     return this.handleTokenExpired(req, next)
-                   }
+          if (error && error.code === ServerErrorCode.CURRENT_PASSWORD_IS_INVALID) {
+            return observableThrowError(() => err)
+          }
 
-                   if (err.status === HttpStatusCode.UNAUTHORIZED_401) {
-                     return this.handleNotAuthenticated(err)
-                   }
+          if (!isOTPMissingError) {
+            if (err.status === HttpStatusCode.UNAUTHORIZED_401 && error && error.code === OAuth2ErrorCode.INVALID_TOKEN) {
+              return this.handleTokenExpired(req, next)
+            }
 
-                   return observableThrowError(() => err)
-                 })
-               )
+            if (err.status === HttpStatusCode.UNAUTHORIZED_401) {
+              return this.handleNotAuthenticated(err)
+            }
+          }
+
+          return observableThrowError(() => err)
+        })
+      )
   }
 
   private handleTokenExpired (req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
@@ -61,8 +67,8 @@ export class AuthInterceptor implements HttpInterceptor {
     return req.clone({ headers: req.headers.set('Authorization', authHeaderValue) })
   }
 
-  private handleNotAuthenticated (err: HttpErrorResponse, path = '/login'): Observable<any> {
-    this.router.navigateByUrl(path)
+  private handleNotAuthenticated (err: HttpErrorResponse): Observable<any> {
+    this.router.navigate([ '/401' ], { state: { obj: err }, skipLocationChange: true })
     return of(err.message)
   }
 }

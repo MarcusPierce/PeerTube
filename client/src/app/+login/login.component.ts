@@ -1,30 +1,63 @@
-import { environment } from 'src/environments/environment'
+import { NgClass, NgFor, NgIf, NgTemplateOutlet } from '@angular/common'
 import { AfterViewInit, Component, ElementRef, OnInit, ViewChild } from '@angular/core'
-import { ActivatedRoute } from '@angular/router'
-import { AuthService, Notifier, RedirectService, UserService } from '@app/core'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
+import { ActivatedRoute, Router, RouterLink } from '@angular/router'
+import { AuthService, Notifier, RedirectService, SessionStorageService, UserService } from '@app/core'
 import { HooksService } from '@app/core/plugins/hooks.service'
 import { LOGIN_PASSWORD_VALIDATOR, LOGIN_USERNAME_VALIDATOR } from '@app/shared/form-validators/login-validators'
-import { FormReactive, FormValidatorService } from '@app/shared/shared-forms'
-import { InstanceAboutAccordionComponent } from '@app/shared/shared-instance'
-import { NgbAccordion, NgbModal, NgbModalRef } from '@ng-bootstrap/ng-bootstrap'
-import { RegisteredExternalAuthConfig, ServerConfig } from '@shared/models'
+import { USER_OTP_TOKEN_VALIDATOR } from '@app/shared/form-validators/user-validators'
+import { FormReactive } from '@app/shared/shared-forms/form-reactive'
+import { FormReactiveService } from '@app/shared/shared-forms/form-reactive.service'
+import { InputTextComponent } from '@app/shared/shared-forms/input-text.component'
+import { InstanceAboutAccordionComponent } from '@app/shared/shared-instance/instance-about-accordion.component'
+import { AlertComponent } from '@app/shared/shared-main/common/alert.component'
+import { NgbAccordionDirective, NgbModal, NgbModalRef } from '@ng-bootstrap/ng-bootstrap'
+import { getExternalAuthHref } from '@peertube/peertube-core-utils'
+import { RegisteredExternalAuthConfig, ServerConfig, ServerErrorCode } from '@peertube/peertube-models'
+import { environment } from 'src/environments/environment'
+import { GlobalIconComponent } from '../shared/shared-icons/global-icon.component'
+import { InstanceBannerComponent } from '../shared/shared-instance/instance-banner.component'
+import { AutofocusDirective } from '../shared/shared-main/common/autofocus.directive'
+import { PluginSelectorDirective } from '../shared/shared-main/plugins/plugin-selector.directive'
 
 @Component({
   selector: 'my-login',
   templateUrl: './login.component.html',
-  styleUrls: [ './login.component.scss' ]
+  styleUrls: [ './login.component.scss' ],
+  imports: [
+    NgIf,
+    RouterLink,
+    FormsModule,
+    PluginSelectorDirective,
+    ReactiveFormsModule,
+    AutofocusDirective,
+    NgClass,
+    NgTemplateOutlet,
+    InputTextComponent,
+    NgFor,
+    InstanceBannerComponent,
+    InstanceAboutAccordionComponent,
+    GlobalIconComponent,
+    AlertComponent
+  ]
 })
 
 export class LoginComponent extends FormReactive implements OnInit, AfterViewInit {
-  @ViewChild('forgotPasswordModal', { static: true }) forgotPasswordModal: ElementRef
+  private static SESSION_STORAGE_REDIRECT_URL_KEY = 'login-previous-url'
 
-  accordion: NgbAccordion
+  @ViewChild('forgotPasswordModal', { static: true }) forgotPasswordModal: ElementRef
+  @ViewChild('otpTokenInput') otpTokenInput: InputTextComponent
+  @ViewChild('instanceAboutAccordion') instanceAboutAccordion: InstanceAboutAccordionComponent
+
+  accordion: NgbAccordionDirective
   error: string = null
   forgotPasswordEmail = ''
 
   isAuthenticatedWithExternalAuth = false
   externalAuthError = false
   externalLogins: string[] = []
+
+  instanceBannerUrl: string
 
   instanceInformationPanels = {
     terms: true,
@@ -34,18 +67,22 @@ export class LoginComponent extends FormReactive implements OnInit, AfterViewIni
     codeOfConduct: false
   }
 
+  otpStep = false
+
   private openedForgotPasswordModal: NgbModalRef
   private serverConfig: ServerConfig
 
   constructor (
-    protected formValidatorService: FormValidatorService,
+    protected formReactiveService: FormReactiveService,
     private route: ActivatedRoute,
     private modalService: NgbModal,
     private authService: AuthService,
     private userService: UserService,
     private redirectService: RedirectService,
     private notifier: Notifier,
-    private hooks: HooksService
+    private hooks: HooksService,
+    private storage: SessionStorageService,
+    private router: Router
   ) {
     super()
   }
@@ -54,11 +91,15 @@ export class LoginComponent extends FormReactive implements OnInit, AfterViewIni
     return this.serverConfig.signup.allowed === true
   }
 
+  get instanceName () {
+    return this.serverConfig.instance.name
+  }
+
   onTermsClick (event: Event, instanceInformation: HTMLElement) {
     event.preventDefault()
 
-    if (this.accordion) {
-      this.accordion.expand('terms')
+    if (this.instanceAboutAccordion) {
+      this.instanceAboutAccordion.expandTerms()
       instanceInformation.scrollIntoView({ behavior: 'smooth' })
     }
   }
@@ -72,8 +113,12 @@ export class LoginComponent extends FormReactive implements OnInit, AfterViewIni
 
     // Avoid undefined errors when accessing form error properties
     this.buildForm({
-      username: LOGIN_USERNAME_VALIDATOR,
-      password: LOGIN_PASSWORD_VALIDATOR
+      'username': LOGIN_USERNAME_VALIDATOR,
+      'password': LOGIN_PASSWORD_VALIDATOR,
+      'otp-token': {
+        VALIDATORS: [], // Will be set dynamically
+        MESSAGES: USER_OTP_TOKEN_VALIDATOR.MESSAGES
+      }
     })
 
     this.serverConfig = snapshot.data.serverConfig
@@ -87,6 +132,11 @@ export class LoginComponent extends FormReactive implements OnInit, AfterViewIni
       this.externalAuthError = true
       return
     }
+
+    const previousUrl = this.redirectService.getPreviousUrl()
+    if (previousUrl && previousUrl !== '/') {
+      this.storage.setItem(LoginComponent.SESSION_STORAGE_REDIRECT_URL_KEY, previousUrl)
+    }
   }
 
   ngAfterViewInit () {
@@ -97,20 +147,31 @@ export class LoginComponent extends FormReactive implements OnInit, AfterViewIni
     return this.serverConfig.plugin.registeredExternalAuths
   }
 
+  hasExternalLogins () {
+    return this.getExternalLogins().length !== 0
+  }
+
   getAuthHref (auth: RegisteredExternalAuthConfig) {
-    return environment.apiUrl + `/plugins/${auth.name}/${auth.version}/auth/${auth.authName}`
+    return getExternalAuthHref(environment.apiUrl, auth)
   }
 
   login () {
     this.error = null
 
-    const { username, password } = this.form.value
+    const options = {
+      username: this.form.value['username'],
+      password: this.form.value['password'],
+      otpToken: this.form.value['otp-token']
+    }
 
-    this.authService.login(username, password)
+    this.authService.login(options)
+      .pipe()
       .subscribe({
         next: () => this.redirectService.redirectToPreviousRoute(),
 
-        error: err => this.handleError(err)
+        error: err => {
+          this.handleError(err)
+        }
       })
   }
 
@@ -141,16 +202,20 @@ The link will expire within 1 hour.`
     this.accordion = instanceAboutAccordion.accordion
   }
 
-  hasUsernameUppercase () {
-    return this.form.value['username'].match(/[A-Z]/)
-  }
-
   private loadExternalAuthToken (username: string, token: string) {
     this.isAuthenticatedWithExternalAuth = true
 
-    this.authService.login(username, null, token)
+    this.authService.login({ username, password: null, token })
       .subscribe({
-        next: () => this.redirectService.redirectToPreviousRoute(),
+        next: () => {
+          const redirectUrl = this.storage.getItem(LoginComponent.SESSION_STORAGE_REDIRECT_URL_KEY)
+          if (redirectUrl) {
+            this.storage.removeItem(LoginComponent.SESSION_STORAGE_REDIRECT_URL_KEY)
+            return this.router.navigateByUrl(redirectUrl)
+          }
+
+          this.redirectService.redirectToLatestSessionRoute()
+        },
 
         error: err => {
           this.handleError(err)
@@ -160,8 +225,37 @@ The link will expire within 1 hour.`
   }
 
   private handleError (err: any) {
-    if (err.message.indexOf('credentials are invalid') !== -1) this.error = $localize`Incorrect username or password.`
-    else if (err.message.indexOf('blocked') !== -1) this.error = $localize`Your account is blocked.`
-    else this.error = err.message
+    if (this.authService.isOTPMissingError(err)) {
+      this.otpStep = true
+
+      setTimeout(() => {
+        this.form.get('otp-token').setValidators(USER_OTP_TOKEN_VALIDATOR.VALIDATORS)
+        this.otpTokenInput.focus()
+      })
+
+      return
+    }
+
+    if (err.message.includes('credentials are invalid')) {
+      this.error = $localize`Incorrect username or password.`
+      return
+    }
+
+    if (err.message.includes('blocked')) {
+      this.error = $localize`Your account is blocked.`
+      return
+    }
+
+    if (err.body?.code === ServerErrorCode.ACCOUNT_WAITING_FOR_APPROVAL) {
+      this.error = $localize`This account is awaiting approval by moderators.`
+      return
+    }
+
+    if (err.body?.code === ServerErrorCode.ACCOUNT_APPROVAL_REJECTED) {
+      this.error = $localize`Registration approval has been rejected for this account.`
+      return
+    }
+
+    this.error = err.message
   }
 }

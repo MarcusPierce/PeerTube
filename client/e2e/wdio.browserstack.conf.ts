@@ -1,3 +1,4 @@
+import { onBrowserStackComplete, onBrowserStackPrepare } from './src/utils'
 import { config as mainConfig } from './wdio.main.conf'
 
 const user = process.env.BROWSERSTACK_USER
@@ -9,33 +10,46 @@ if (!key) throw new Error('Miss browser stack key')
 function buildMainOptions (sessionName: string) {
   return {
     projectName: 'PeerTube',
-    buildName: 'Main E2E - ' + new Date().toISOString().split('T')[0],
+    buildName: 'Main E2E - ' + new Date().toISOString(),
     sessionName,
     consoleLogs: 'info',
     networkLogs: true
   }
 }
 
-function buildBStackDesktopOptions (sessionName: string, resolution?: string) {
+function buildBStackDesktopOptions (options: {
+  sessionName: string
+  resolution: string
+  os?: string
+  osVersion?: string
+}) {
+  const { sessionName, resolution, os, osVersion } = options
+
   return {
     'bstack:options': {
       ...buildMainOptions(sessionName),
 
+      os,
+      osVersion,
       resolution
     }
   }
 }
 
-function buildBStackMobileOptions (sessionName: string, deviceName: string, osVersion: string, appiumVersion?: string) {
+function buildBStackMobileOptions (options: {
+  sessionName: string
+  deviceName: string
+  osVersion: string
+}) {
+  const { sessionName, deviceName, osVersion } = options
+
   return {
     'bstack:options': {
       ...buildMainOptions(sessionName),
 
       realMobile: true,
       osVersion,
-      deviceName,
-
-      appiumVersion
+      deviceName
     }
   }
 }
@@ -53,45 +67,46 @@ module.exports = {
       {
         browserName: 'Chrome',
 
-        ...buildBStackDesktopOptions('Latest Chrome Desktop', '1280x1024')
+        ...buildBStackDesktopOptions({ sessionName: 'Latest Chrome Desktop', resolution: '1280x1024', os: 'Windows', osVersion: '8' })
       },
       {
         browserName: 'Firefox',
-        browserVersion: '68', // ESR
+        browserVersion: '79', // Oldest supported version
 
-        ...buildBStackDesktopOptions('Firefox ESR Desktop', '1280x1024')
+        ...buildBStackDesktopOptions({ sessionName: 'Firefox ESR Desktop', resolution: '1280x1024', os: 'Windows', osVersion: '8' })
       },
       {
         browserName: 'Safari',
-        browserVersion: '11.1',
+        browserVersion: '14',
 
-        ...buildBStackDesktopOptions('Safari Desktop', '1280x1024')
+        ...buildBStackDesktopOptions({ sessionName: 'Safari Desktop', resolution: '1280x1024' })
       },
       {
         browserName: 'Firefox',
 
-        ...buildBStackDesktopOptions('Firefox Latest', '1280x1024')
+        ...buildBStackDesktopOptions({ sessionName: 'Firefox Latest', resolution: '1280x1024', os: 'Windows', osVersion: '8' })
       },
       {
         browserName: 'Edge',
 
-        ...buildBStackDesktopOptions('Edge Latest', '1280x1024')
+        ...buildBStackDesktopOptions({ sessionName: 'Edge Latest', resolution: '1280x1024' })
       },
 
       {
         browserName: 'Chrome',
 
-        ...buildBStackMobileOptions('Latest Chrome Android', 'Samsung Galaxy S6', '5.0')
+        ...buildBStackMobileOptions({ sessionName: 'Latest Chrome Android', deviceName: 'Samsung Galaxy S8', osVersion: '7.0' })
       },
       {
         browserName: 'Safari',
 
-        ...buildBStackMobileOptions('Safari iPhone', 'iPhone SE', '11')
+        ...buildBStackMobileOptions({ sessionName: 'Safari iPhone', deviceName: 'iPhone 11', osVersion: '14' })
       },
+
       {
         browserName: 'Safari',
 
-        ...buildBStackMobileOptions('Safari iPad', 'iPad 7th', '13')
+        ...buildBStackMobileOptions({ sessionName: 'Safari iPad', deviceName: 'iPad Pro 11 2020', osVersion: '14' })
       }
     ],
 
@@ -114,6 +129,51 @@ module.exports = {
       if (capabilities['bstack:options'].realMobile === true) {
         capabilities['bstack:options'].local = false
       }
-    }
+    },
+
+    before: function () {
+      require('./src/commands/upload')
+
+      // Force keep alive: https://www.browserstack.com/docs/automate/selenium/error-codes/keep-alive-not-used#Node_JS
+      const http = require('http')
+      const https = require('https')
+
+      const keepAliveTimeout = 30 * 1000
+
+      // eslint-disable-next-line no-prototype-builtins
+      if (http.globalAgent?.hasOwnProperty('keepAlive')) {
+        http.globalAgent.keepAlive = true
+        https.globalAgent.keepAlive = true
+        http.globalAgent.keepAliveMsecs = keepAliveTimeout
+        https.globalAgent.keepAliveMsecs = keepAliveTimeout
+      } else {
+        const agent = new http.Agent({
+          keepAlive: true,
+          keepAliveMsecs: keepAliveTimeout
+        })
+
+        const secureAgent = new https.Agent({
+          keepAlive: true,
+          keepAliveMsecs: keepAliveTimeout
+        })
+
+        const httpRequest = http.request
+        const httpsRequest = https.request
+
+        http.request = function (options, callback) {
+          if (options.protocol === 'https:') {
+            options['agent'] = secureAgent
+            return httpsRequest(options, callback)
+          } else {
+            options['agent'] = agent
+            return httpRequest(options, callback)
+          }
+        }
+      }
+    },
+
+    onPrepare: onBrowserStackPrepare,
+    onComplete: onBrowserStackComplete
+
   } as WebdriverIO.Config
 }

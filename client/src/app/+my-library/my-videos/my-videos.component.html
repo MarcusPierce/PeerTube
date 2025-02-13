@@ -1,29 +1,10 @@
-<h1>
-  <span>
-    <my-global-icon iconName="videos" aria-hidden="true"></my-global-icon>
-    <ng-container i18n>My videos</ng-container>
-    <span class="badge badge-secondary"> {{ pagination.totalItems }}</span>
-  </span>
-
-  <div>
-    <a routerLink="/my-library/video-imports" class="button-link">
-      <my-global-icon iconName="cloud-download" aria-hidden="true"></my-global-icon>
-      <ng-container i18n>My imports</ng-container>
-    </a>
-
-    <a routerLink="/my-library/ownership" class="button-link">
-      <my-global-icon iconName="users" aria-hidden="true"></my-global-icon>
-      <ng-container i18n>Ownership changes</ng-container>
-    </a>
-  </div>
-</h1>
-
-<div class="videos-header d-flex justify-content-between">
+<div class="videos-header d-flex justify-content-between align-items-end gap-2 flex-wrap">
   <my-advanced-input-filter [emitOnInit]="false" [filters]="inputFilters" (search)="onSearch($event)"></my-advanced-input-filter>
 
-  <div class="peertube-select-container peertube-select-button">
-    <select [(ngModel)]="sort" (ngModelChange)="onChangeSortColumn()" class="form-control">
-      <option value="undefined" disabled i18n>Sort by</option>
+  <span class="total-items" *ngIf="pagination.totalItems"> {{ getTotalTitle() }}</span>
+
+  <div class="peertube-select-container">
+    <select [(ngModel)]="sort" (ngModelChange)="onChangeSortColumn()" class="form-control" i18n-ariaLabel aria-label="Sort by">
       <option value="-publishedAt" i18n>Last published first</option>
       <option value="-createdAt" i18n>Last created first</option>
       <option value="-views" i18n>Most viewed first</option>
@@ -34,6 +15,7 @@
 </div>
 
 <my-videos-selection
+  [videosContainedInPlaylists]="videosContainedInPlaylists"
   [pagination]="pagination"
   [(selection)]="selection"
   [(videosModel)]="videos"
@@ -45,20 +27,19 @@
   #videosSelection
 >
   <ng-template ptTemplate="globalButtons">
-    <span class="action-button action-button-delete-selection" (click)="deleteSelectedVideos()">
-      <my-global-icon iconName="delete" aria-hidden="true"></my-global-icon>
-      <ng-container i18n>Delete</ng-container>
-    </span>
+    <my-delete-button class="delete-selection" (click)="deleteSelectedVideos()"></my-delete-button>
   </ng-template>
 
   <ng-template ptTemplate="rowButtons" let-video>
     <div class="action-button">
-      <my-edit-button label [routerLink]="[ '/videos', 'update', video.uuid ]"></my-edit-button>
+      <my-edit-button label [ptRouterLink]="[ '/videos', 'update', video.shortUUID ]"></my-edit-button>
 
-      <my-action-dropdown [actions]="videoActions" [entry]="{ video: video }"></my-action-dropdown>
+      <my-video-actions-dropdown
+        [video]="video" [displayOptions]="videoDropdownDisplayOptions" [moreActions]="moreVideoActions"
+        buttonStyled="true" buttonDirection="horizontal" (videoRemoved)="onVideoRemoved(video)"
+      ></my-video-actions-dropdown>
     </div>
   </ng-template>
 </my-videos-selection>
 
 <my-video-change-ownership #videoChangeOwnershipModal></my-video-change-ownership>
-<my-live-stream-information #liveStreamInformationModal></my-live-stream-information>

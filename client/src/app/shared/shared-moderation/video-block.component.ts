@@ -1,16 +1,23 @@
 import { Component, EventEmitter, OnInit, Output, ViewChild } from '@angular/core'
 import { Notifier } from '@app/core'
-import { FormReactive, FormValidatorService } from '@app/shared/shared-forms'
-import { Video } from '@app/shared/shared-main'
+import { formatICU } from '@app/helpers'
+import { FormReactive } from '@app/shared/shared-forms/form-reactive'
+import { FormReactiveService } from '@app/shared/shared-forms/form-reactive.service'
+import { Video } from '@app/shared/shared-main/video/video.model'
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap'
 import { NgbModalRef } from '@ng-bootstrap/ng-bootstrap/modal/modal-ref'
 import { VIDEO_BLOCK_REASON_VALIDATOR } from '../form-validators/video-block-validators'
 import { VideoBlockService } from './video-block.service'
+import { PeertubeCheckboxComponent } from '../shared-forms/peertube-checkbox.component'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
+import { GlobalIconComponent } from '../shared-icons/global-icon.component'
+import { NgIf, NgClass } from '@angular/common'
 
 @Component({
   selector: 'my-video-block',
   templateUrl: './video-block.component.html',
-  styleUrls: [ './video-block.component.scss' ]
+  styleUrls: [ './video-block.component.scss' ],
+  imports: [ NgIf, GlobalIconComponent, FormsModule, ReactiveFormsModule, NgClass, PeertubeCheckboxComponent ]
 })
 export class VideoBlockComponent extends FormReactive implements OnInit {
   @ViewChild('modal', { static: true }) modal: NgbModal
@@ -24,7 +31,7 @@ export class VideoBlockComponent extends FormReactive implements OnInit {
   private openedModal: NgbModalRef
 
   constructor (
-    protected formValidatorService: FormValidatorService,
+    protected formReactiveService: FormReactiveService,
     private modalService: NgbModal,
     private videoBlocklistService: VideoBlockService,
     private notifier: Notifier
@@ -80,9 +87,10 @@ export class VideoBlockComponent extends FormReactive implements OnInit {
     this.videoBlocklistService.blockVideo(options)
         .subscribe({
           next: () => {
-            const message = this.isMultiple
-              ? $localize`Blocked ${this.videos.length} videos.`
-              : $localize`Blocked ${this.getSingleVideo().name}`
+            const message = formatICU(
+              $localize`{count, plural, =1 {Blocked {videoName}.} other {Blocked {count} videos.}}`,
+              { count: this.videos.length, videoName: this.getSingleVideo().name }
+            )
 
             this.notifier.success(message)
             this.hide()

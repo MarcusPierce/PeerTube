@@ -7,50 +7,37 @@
 
 .view-replies {
   font-weight: $font-semibold;
-  font-size: 15px;
   cursor: pointer;
-}
+  position: relative;
 
-.glyphicon,
-.comment-thread-loading {
-  @include margin-right(5px);
-
-  display: inline-block;
-  font-size: 13px;
+  .chevron-down {
+    @include margin-left(0);
+  }
 }
 
 .title-block {
-  .title-page {
-    @include margin-right(0);
+  > h2 {
+    display: inline-block;
+    margin-bottom: 1.5rem;
+
+    @include font-size(1.25rem);
   }
 
   my-feed {
-    @include margin-left(5px);
-
     display: inline-block;
-    opacity: 0;
     transition: ease-in .2s opacity;
     width: 12px;
-    position: relative;
-    top: -3px;
-  }
+    height: 12px;
+    line-height: 12px;
 
-  &:hover my-feed {
-    opacity: 1;
+    @include margin-left(5px);
   }
 }
 
 #dropdown-sort-comments {
-  font-weight: 600;
+  font-weight: $font-semibold;
   text-transform: uppercase;
   border: 0;
-  transform: translateY(-7%);
-}
-
-@media screen and (max-width: 600px) {
-  .view-replies {
-    @include margin-left(46px);
-  }
 }
 
 @media screen and (max-width: 450px) {

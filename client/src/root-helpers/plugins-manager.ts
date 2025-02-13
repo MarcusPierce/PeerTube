@@ -1,44 +1,56 @@
 /* eslint-disable @typescript-eslint/no-implied-eval */
-import * as debug from 'debug'
+import debug from 'debug'
 import { firstValueFrom, ReplaySubject } from 'rxjs'
 import { first, shareReplay } from 'rxjs/operators'
-import { RegisterClientHelpers } from 'src/types/register-client-option.model'
-import { getHookType, internalRunHook } from '@shared/core-utils/plugins/hooks'
+import { RegisterClientHelpers } from '../types/register-client-option.model'
+import { getExternalAuthHref, getHookType, internalRunHook } from '@peertube/peertube-core-utils'
 import {
+  ClientDoAction,
   ClientHookName,
   clientHookObject,
-  ClientScript,
+  ClientScriptJSON,
   HTMLServerConfig,
   PluginClientScope,
   PluginType,
+  PluginType_Type,
   RegisterClientFormFieldOptions,
   RegisterClientHookOptions,
-  RegisterClientSettingsScript,
+  RegisterClientRouteOptions,
+  RegisterClientSettingsScriptOptions,
   RegisterClientVideoFieldOptions,
   ServerConfigPlugin
-} from '../../../shared/models'
+} from '@peertube/peertube-models'
 import { environment } from '../environments/environment'
-import { ClientScript as ClientScriptModule } from '../types/client-script.model'
+import { ClientScript } from '../types'
+import { logger } from './logger'
 
 interface HookStructValue extends RegisterClientHookOptions {
   plugin: ServerConfigPlugin
-  clientScript: ClientScript
+  clientScript: ClientScriptJSON
 }
 
 type Hooks = { [ name: string ]: HookStructValue[] }
 
 type PluginInfo = {
   plugin: ServerConfigPlugin
-  clientScript: ClientScript
-  pluginType: PluginType
+  clientScript: ClientScriptJSON
+  pluginType: PluginType_Type
   isTheme: boolean
 }
 
 type PeertubeHelpersFactory = (pluginInfo: PluginInfo) => RegisterClientHelpers
-type OnFormFields = (options: RegisterClientFormFieldOptions, videoFormOptions: RegisterClientVideoFieldOptions) => void
-type OnSettingsScripts = (pluginInfo: PluginInfo, options: RegisterClientSettingsScript) => void
 
-const logger = debug('peertube:plugins')
+type OnFormFields = (
+  pluginInfo: PluginInfo,
+  options: RegisterClientFormFieldOptions,
+  videoFormOptions: RegisterClientVideoFieldOptions
+) => void
+
+type OnSettingsScripts = (pluginInfo: PluginInfo, options: RegisterClientSettingsScriptOptions) => void
+
+type OnClientRoute = (options: RegisterClientRouteOptions) => void
+
+const debugLogger = debug('peertube:plugins')
 
 class PluginsManager {
   private hooks: Hooks = {}
@@ -50,32 +62,56 @@ class PluginsManager {
   private loadingScopes: { [id in PluginClientScope]?: boolean } = {}
 
   private pluginsLoaded: { [ scope in PluginClientScope ]: ReplaySubject<boolean> } = {
-    common: new ReplaySubject<boolean>(1),
+    'common': new ReplaySubject<boolean>(1),
     'admin-plugin': new ReplaySubject<boolean>(1),
-    search: new ReplaySubject<boolean>(1),
+    'search': new ReplaySubject<boolean>(1),
     'video-watch': new ReplaySubject<boolean>(1),
-    signup: new ReplaySubject<boolean>(1),
-    login: new ReplaySubject<boolean>(1),
+    'signup': new ReplaySubject<boolean>(1),
+    'login': new ReplaySubject<boolean>(1),
     'video-edit': new ReplaySubject<boolean>(1),
-    embed: new ReplaySubject<boolean>(1)
+    'embed': new ReplaySubject<boolean>(1),
+    'my-library': new ReplaySubject<boolean>(1),
+    'video-channel': new ReplaySubject<boolean>(1),
+    'my-account': new ReplaySubject<boolean>(1),
+    'admin-users': new ReplaySubject<boolean>(1),
+    'admin-comments': new ReplaySubject<boolean>(1),
+    'moderation': new ReplaySubject<boolean>(1)
   }
 
+  private readonly doAction: ClientDoAction
   private readonly peertubeHelpersFactory: PeertubeHelpersFactory
   private readonly onFormFields: OnFormFields
   private readonly onSettingsScripts: OnSettingsScripts
+  private readonly onClientRoute: OnClientRoute
+  private readonly backendUrl: string
 
   constructor (options: {
+    doAction?: ClientDoAction
     peertubeHelpersFactory: PeertubeHelpersFactory
     onFormFields?: OnFormFields
     onSettingsScripts?: OnSettingsScripts
+    onClientRoute?: OnClientRoute
+    backendUrl?: string
   }) {
+    this.doAction = options.doAction
     this.peertubeHelpersFactory = options.peertubeHelpersFactory
     this.onFormFields = options.onFormFields
     this.onSettingsScripts = options.onSettingsScripts
+    this.onClientRoute = options.onClientRoute
+    this.backendUrl = options.backendUrl
   }
 
   static getPluginPathPrefix (isTheme: boolean) {
     return isTheme ? '/themes' : '/plugins'
+  }
+
+  static getDefaultLoginHref (apiUrl: string, serverConfig: HTMLServerConfig) {
+    if (!serverConfig || serverConfig.client.menu.login.redirectOnSingleExternalAuth !== true) return undefined
+
+    const externalAuths = serverConfig.plugin.registeredExternalAuths
+    if (externalAuths.length !== 1) return undefined
+
+    return getExternalAuthHref(apiUrl, externalAuths[0])
   }
 
   loadPluginsList (config: HTMLServerConfig) {
@@ -84,16 +120,27 @@ class PluginsManager {
     }
   }
 
-  async runHook<T> (hookName: ClientHookName, result?: T, params?: any) {
-    if (!this.hooks[hookName]) return result
+  async runHook<T> (hookName: ClientHookName, resultArg?: T | Promise<T>, params?: any) {
+    if (!this.hooks[hookName]) {
+      // eslint-disable-next-line no-return-await
+      return await resultArg
+    }
 
     const hookType = getHookType(hookName)
 
-    for (const hook of this.hooks[hookName]) {
-      console.log('Running hook %s of plugin %s.', hookName, hook.plugin.name)
+    let result = await resultArg
 
-      result = await internalRunHook(hook.handler, hookType, result, params, err => {
-        console.error('Cannot run hook %s of script %s of plugin %s.', hookName, hook.clientScript.script, hook.plugin.name, err)
+    for (const hook of this.hooks[hookName]) {
+      logger.info(`Running hook ${hookName} of plugin ${hook.plugin.name}`)
+
+      result = await internalRunHook({
+        handler: hook.handler,
+        hookType,
+        result,
+        params,
+        onError: err => {
+          logger.error(`Cannot run hook ${hookName} of script ${hook.clientScript.script} of plugin ${hook.plugin.name}`, err)
+        }
       })
     }
 
@@ -151,7 +198,7 @@ class PluginsManager {
 
     this.loadingScopes[scope] = true
 
-    logger('Loading scope %s', scope)
+    debugLogger('Loading scope %s', scope)
 
     try {
       if (!isReload) this.loadedScopes.push(scope)
@@ -161,7 +208,7 @@ class PluginsManager {
         this.loadingScopes[scope] = false
         this.pluginsLoaded[scope].next(true)
 
-        logger('Nothing to load for scope %s', scope)
+        debugLogger('Nothing to load for scope %s', scope)
         return
       }
 
@@ -181,9 +228,9 @@ class PluginsManager {
       this.pluginsLoaded[scope].next(true)
       this.loadingScopes[scope] = false
 
-      logger('Scope %s loaded', scope)
+      debugLogger('Scope %s loaded', scope)
     } catch (err) {
-      console.error('Cannot load plugins by scope %s.', scope, err)
+      logger.error(`Cannot load plugins by scope ${scope}`, err)
     }
   }
 
@@ -192,7 +239,7 @@ class PluginsManager {
 
     const registerHook = (options: RegisterClientHookOptions) => {
       if (clientHookObject[options.target] !== true) {
-        console.error('Unknown hook %s of plugin %s. Skipping.', options.target, plugin.name)
+        logger.error(`Unknown hook ${options.target} of plugin ${plugin.name}. Skipping.`)
         return
       }
 
@@ -212,10 +259,10 @@ class PluginsManager {
         throw new Error('Video field registration is not supported')
       }
 
-      return this.onFormFields(commonOptions, videoFormOptions)
+      return this.onFormFields(pluginInfo, commonOptions, videoFormOptions)
     }
 
-    const registerSettingsScript = (options: RegisterClientSettingsScript) => {
+    const registerSettingsScript = (options: RegisterClientSettingsScriptOptions) => {
       if (!this.onSettingsScripts) {
         throw new Error('Registering settings script is not supported')
       }
@@ -223,15 +270,34 @@ class PluginsManager {
       return this.onSettingsScripts(pluginInfo, options)
     }
 
+    const registerClientRoute = (options: RegisterClientRouteOptions) => {
+      if (!this.onClientRoute) {
+        throw new Error('Registering client route is not supported')
+      }
+
+      return this.onClientRoute(options)
+    }
+
+    const doAction = this.doAction
+
     const peertubeHelpers = this.peertubeHelpersFactory(pluginInfo)
 
-    console.log('Loading script %s of plugin %s.', clientScript.script, plugin.name)
+    logger.info(`Loading script ${clientScript.script} of plugin ${plugin.name}`)
 
-    const absURL = (environment.apiUrl || window.location.origin) + clientScript.script
+    const absURL = (this.backendUrl || environment.apiUrl || window.location.origin) + clientScript.script
     return dynamicImport(absURL)
-      .then((script: ClientScriptModule) => script.register({ registerHook, registerVideoField, registerSettingsScript, peertubeHelpers }))
+      .then((script: ClientScript) => {
+        return script.register({
+          doAction,
+          registerHook,
+          registerVideoField,
+          registerSettingsScript,
+          registerClientRoute,
+          peertubeHelpers
+        })
+      })
       .then(() => this.sortHooksByPriority())
-      .catch(err => console.error('Cannot import or register plugin %s.', pluginInfo.plugin.name, err))
+      .catch(err => logger.error(`Cannot import or register plugin ${pluginInfo.plugin.name}`, err))
   }
 
   private sortHooksByPriority () {
@@ -246,10 +312,10 @@ class PluginsManager {
 export {
   PluginsManager,
 
-  PluginInfo,
-  PeertubeHelpersFactory,
-  OnFormFields,
-  OnSettingsScripts
+  type PluginInfo,
+  type PeertubeHelpersFactory,
+  type OnFormFields,
+  type OnSettingsScripts
 }
 
 // ---------------------------------------------------------------------------
@@ -259,14 +325,14 @@ async function dynamicImport (url: string) {
     // eslint-disable-next-line no-new-func
     return new Function(`return import('${url}')`)()
   } catch {
-    console.log('Fallback to import polyfill')
+    logger.info('Fallback to import polyfill')
 
     return new Promise((resolve, reject) => {
       const vector = '$importModule$' + Math.random().toString(32).slice(2)
       const script = document.createElement('script')
 
       const destructor = () => {
-        delete window[vector]
+        delete window[vector as any]
         script.onerror = null
         script.onload = null
         script.remove()
@@ -282,7 +348,7 @@ async function dynamicImport (url: string) {
         destructor()
       }
       script.onload = () => {
-        resolve(window[vector])
+        resolve(window[vector as any])
         destructor()
       }
       const loader = `import * as m from "${url}"; window.${vector} = m;` // export Module

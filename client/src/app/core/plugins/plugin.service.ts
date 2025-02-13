@@ -10,25 +10,31 @@ import { RestExtractor } from '@app/core/rest'
 import { ServerService } from '@app/core/server/server.service'
 import { getDevLocale, isOnDevLocale } from '@app/helpers'
 import { CustomModalComponent } from '@app/modal/custom-modal.component'
-import { PluginInfo, PluginsManager } from '@root-helpers/plugins-manager'
-import { getCompleteLocale, isDefaultLocale, peertubeTranslate } from '@shared/core-utils/i18n'
+import { getCompleteLocale, getKeys, isDefaultLocale, peertubeTranslate } from '@peertube/peertube-core-utils'
 import {
+  ClientDoActionCallback,
+  ClientDoActionName,
   ClientHook,
   ClientHookName,
   PluginClientScope,
   PluginTranslation,
   PluginType,
+  PluginType_Type,
   PublicServerSetting,
   RegisterClientFormFieldOptions,
-  RegisterClientSettingsScript,
+  RegisterClientRouteOptions,
+  RegisterClientSettingsScriptOptions,
   RegisterClientVideoFieldOptions,
   ServerConfigPlugin
-} from '@shared/models'
+} from '@peertube/peertube-models'
+import { PluginInfo, PluginsManager } from '@root-helpers/plugins-manager'
 import { environment } from '../../../environments/environment'
 import { RegisterClientHelpers } from '../../../types/register-client-option.model'
+import { logger } from '@root-helpers/logger'
 
 type FormFields = {
   video: {
+    pluginInfo: PluginInfo
     commonOptions: RegisterClientFormFieldOptions
     videoFormOptions: RegisterClientVideoFieldOptions
   }[]
@@ -43,14 +49,19 @@ export class PluginService implements ClientHook {
 
   customModal: CustomModalComponent
 
-  private helpers: { [ npmName: string ]: RegisterClientHelpers } = {}
-
   private formFields: FormFields = {
     video: []
   }
-  private settingsScripts: { [ npmName: string ]: RegisterClientSettingsScript } = {}
+  private settingsScripts: { [ npmName: string ]: RegisterClientSettingsScriptOptions } = {}
+  private clientRoutes: {
+    [ parentRoute in RegisterClientRouteOptions['parentRoute'] ]?: {
+      [ route: string ]: RegisterClientRouteOptions
+    }
+  } = {}
 
   private pluginsManager: PluginsManager
+
+  private actions = new Map<ClientDoActionName, ClientDoActionCallback>()
 
   constructor (
     private authService: AuthService,
@@ -65,16 +76,26 @@ export class PluginService implements ClientHook {
     this.loadTranslations()
 
     this.pluginsManager = new PluginsManager({
+      doAction: this.doAction.bind(this),
       peertubeHelpersFactory: this.buildPeerTubeHelpers.bind(this),
       onFormFields: this.onFormFields.bind(this),
-      onSettingsScripts: this.onSettingsScripts.bind(this)
+      onSettingsScripts: this.onSettingsScripts.bind(this),
+      onClientRoute: this.onClientRoute.bind(this)
     })
+  }
+
+  addAction (actionName: ClientDoActionName, callback: ClientDoActionCallback) {
+    this.actions.set(actionName, callback)
+  }
+
+  removeAction (actionName: ClientDoActionName) {
+    this.actions.delete(actionName)
   }
 
   initializePlugins () {
     this.pluginsManager.loadPluginsList(this.server.getHTMLConfig())
 
-    this.pluginsManager.ensurePluginsAreLoaded('common')
+    return this.pluginsManager.ensurePluginsAreLoaded('common')
   }
 
   initializeCustomModal (customModal: CustomModalComponent) {
@@ -107,7 +128,7 @@ export class PluginService implements ClientHook {
     return this.pluginsManager.removePlugin(plugin)
   }
 
-  nameToNpmName (name: string, type: PluginType) {
+  nameToNpmName (name: string, type: PluginType_Type) {
     const prefix = type === PluginType.PLUGIN
       ? 'peertube-plugin-'
       : 'peertube-theme-'
@@ -123,32 +144,105 @@ export class PluginService implements ClientHook {
     return this.settingsScripts[npmName]
   }
 
-  translateBy (npmName: string, toTranslate: string) {
-    const helpers = this.helpers[npmName]
-    if (!helpers) {
-      console.error('Unknown helpers to translate %s from %s.', toTranslate, npmName)
-      return toTranslate
+  getRegisteredClientRoute (route: string, parentRoute: RegisterClientRouteOptions['parentRoute']) {
+    if (!this.clientRoutes[parentRoute]) {
+      return undefined
     }
 
-    return helpers.translate(toTranslate)
+    return this.clientRoutes[parentRoute][route]
   }
 
-  private onFormFields (commonOptions: RegisterClientFormFieldOptions, videoFormOptions: RegisterClientVideoFieldOptions) {
+  getAllRegisteredClientRoutesForParent (parentRoute: RegisterClientRouteOptions['parentRoute']) {
+    return this.clientRoutes[parentRoute]
+  }
+
+  getAllRegisteredClientRoutes () {
+    return Object.keys(this.clientRoutes)
+      .map((parentRoute: RegisterClientRouteOptions['parentRoute']) => {
+        return Object.keys(this.clientRoutes[parentRoute])
+          .map(route => {
+            if (parentRoute === '/') return route
+
+            return parentRoute + route
+          })
+      })
+      .flat()
+  }
+
+  async translateSetting (npmName: string, setting: RegisterClientFormFieldOptions) {
+    for (const key of getKeys(setting, [ 'label', 'html', 'descriptionHTML' ])) {
+      if (setting[key]) setting[key] = await this.translateBy(npmName, setting[key])
+    }
+
+    if (Array.isArray(setting.options)) {
+      const newOptions = []
+
+      for (const o of setting.options) {
+        newOptions.push({
+          value: o.value,
+          label: await this.translateBy(npmName, o.label)
+        })
+      }
+
+      setting.options = newOptions
+    }
+  }
+
+  translateBy (npmName: string, toTranslate: string) {
+    const obs = this.translationsObservable
+        .pipe(
+          map(allTranslations => allTranslations[npmName]),
+          map(translations => peertubeTranslate(toTranslate, translations))
+        )
+
+    return firstValueFrom(obs)
+  }
+
+  private doAction (actionName: ClientDoActionName) {
+    if (!this.actions.has(actionName)) {
+      logger.warn(`Plugin tried to do unknown action: ${actionName}`)
+    }
+
+    try {
+      return this.actions.get(actionName)()
+    } catch (err: any) {
+      logger.warn(`Cannot run action ${actionName}`, err)
+    }
+  }
+
+  private onFormFields (
+    pluginInfo: PluginInfo,
+    commonOptions: RegisterClientFormFieldOptions,
+    videoFormOptions: RegisterClientVideoFieldOptions
+  ) {
     this.formFields.video.push({
+      pluginInfo,
       commonOptions,
       videoFormOptions
     })
   }
 
-  private onSettingsScripts (pluginInfo: PluginInfo, options: RegisterClientSettingsScript) {
-    const npmName = this.nameToNpmName(pluginInfo.plugin.name, pluginInfo.pluginType)
+  private onSettingsScripts (pluginInfo: PluginInfo, options: RegisterClientSettingsScriptOptions) {
+    this.settingsScripts[pluginInfo.plugin.npmName] = options
+  }
 
-    this.settingsScripts[npmName] = options
+  private onClientRoute (options: RegisterClientRouteOptions) {
+    const parentRoute = options.parentRoute || '/'
+
+    const route = options.route.startsWith('/')
+      ? options.route
+      : `/${options.route}`
+
+    if (!this.clientRoutes[parentRoute]) {
+      this.clientRoutes[parentRoute] = {}
+    }
+
+    this.clientRoutes[parentRoute][route] = options
   }
 
   private buildPeerTubeHelpers (pluginInfo: PluginInfo): RegisterClientHelpers {
     const { plugin } = pluginInfo
-    const npmName = this.nameToNpmName(pluginInfo.plugin.name, pluginInfo.pluginType)
+    const npmName = pluginInfo.plugin.npmName
 
     return {
       getBaseStaticRoute: () => {
@@ -161,6 +255,15 @@ export class PluginService implements ClientHook {
         return environment.apiUrl + `${pathPrefix}/${plugin.name}/${plugin.version}/router`
       },
 
+      getBaseWebSocketRoute: () => {
+        const pathPrefix = PluginsManager.getPluginPathPrefix(pluginInfo.isTheme)
+        return environment.apiUrl + `${pathPrefix}/${plugin.name}/${plugin.version}/ws`
+      },
+
+      getBasePluginClientPath: () => {
+        return '/p'
+      },
+
       getSettings: () => {
         const path = PluginService.BASE_PLUGIN_API_URL + '/' + npmName + '/public-settings'
 
@@ -171,6 +274,10 @@ export class PluginService implements ClientHook {
                    )
 
         return firstValueFrom(obs)
+      },
+
+      getUser: () => {
+        return this.authService.getUser()
       },
 
       getServerConfig: () => {
@@ -209,20 +316,16 @@ export class PluginService implements ClientHook {
 
       markdownRenderer: {
         textMarkdownToHTML: (textMarkdown: string) => {
-          return this.markdownRenderer.textMarkdownToHTML(textMarkdown)
+          return this.markdownRenderer.textMarkdownToHTML({ markdown: textMarkdown })
         },
 
         enhancedMarkdownToHTML: (enhancedMarkdown: string) => {
-          return this.markdownRenderer.enhancedMarkdownToHTML(enhancedMarkdown)
+          return this.markdownRenderer.enhancedMarkdownToHTML({ markdown: enhancedMarkdown })
         }
       },
 
       translate: (value: string) => {
-        const obs = this.translationsObservable
-            .pipe(map(allTranslations => allTranslations[npmName]))
-            .pipe(map(translations => peertubeTranslate(value, translations)))
-
-        return firstValueFrom(obs)
+        return this.translateBy(npmName, value)
       }
     }
   }

@@ -3,20 +3,22 @@ import { ActivatedRoute, Router } from '@angular/router'
 import { Notifier, UserService } from '@app/core'
 import { RESET_PASSWORD_CONFIRM_VALIDATOR } from '@app/shared/form-validators/reset-password-validators'
 import { USER_PASSWORD_VALIDATOR } from '@app/shared/form-validators/user-validators'
-import { FormReactive, FormValidatorService } from '@app/shared/shared-forms'
+import { FormReactive } from '@app/shared/shared-forms/form-reactive'
+import { FormReactiveService } from '@app/shared/shared-forms/form-reactive.service'
+import { InputTextComponent } from '../shared/shared-forms/input-text.component'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
 
 @Component({
-  selector: 'my-login',
   templateUrl: './reset-password.component.html',
-  styleUrls: [ './reset-password.component.scss' ]
+  styleUrls: [ './reset-password.component.scss' ],
+  imports: [ FormsModule, ReactiveFormsModule, InputTextComponent ]
 })
-
 export class ResetPasswordComponent extends FormReactive implements OnInit {
   private userId: number
   private verificationString: string
 
   constructor (
-    protected formValidatorService: FormValidatorService,
+    protected formReactiveService: FormReactiveService,
     private userService: UserService,
     private notifier: Notifier,
     private router: Router,
@@ -27,7 +29,7 @@ export class ResetPasswordComponent extends FormReactive implements OnInit {
 
   ngOnInit () {
     this.buildForm({
-      password: USER_PASSWORD_VALIDATOR,
+      'password': USER_PASSWORD_VALIDATOR,
       'password-confirm': RESET_PASSWORD_CONFIRM_VALIDATOR
     })
 
@@ -45,6 +47,7 @@ export class ResetPasswordComponent extends FormReactive implements OnInit {
       .subscribe({
         next: () => {
           this.notifier.success($localize`Your password has been successfully reset!`)
+
           this.router.navigate([ '/login' ])
         },
 

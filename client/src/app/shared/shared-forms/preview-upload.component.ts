@@ -2,8 +2,10 @@ import { Component, forwardRef, Input, OnInit } from '@angular/core'
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms'
 import { ServerService } from '@app/core'
 import { imageToDataURL } from '@root-helpers/images'
-import { HTMLServerConfig } from '@shared/models'
-import { BytesPipe } from '../shared-main'
+import { HTMLServerConfig } from '@peertube/peertube-models'
+import { NgIf, NgStyle } from '@angular/common'
+import { ReactiveFileComponent } from './reactive-file.component'
+import { BytesPipe } from '../shared-main/common/bytes.pipe'
 
 @Component({
   selector: 'my-preview-upload',
@@ -15,7 +17,8 @@ import { BytesPipe } from '../shared-main'
       useExisting: forwardRef(() => PreviewUploadComponent),
       multi: true
     }
-  ]
+  ],
+  imports: [ ReactiveFileComponent, NgIf, NgStyle ]
 })
 export class PreviewUploadComponent implements OnInit, ControlValueAccessor {
   @Input() inputLabel: string
@@ -48,6 +51,10 @@ export class PreviewUploadComponent implements OnInit, ControlValueAccessor {
 
   get maxVideoImageSizeInBytes () {
     return this.bytesPipe.transform(this.maxVideoImageSize)
+  }
+
+  getReactiveFileButtonTooltip () {
+    return $localize`(extensions: ${this.videoImageExtensions}, ${this.maxSizeText}\: ${this.maxVideoImageSizeInBytes})`
   }
 
   ngOnInit () {

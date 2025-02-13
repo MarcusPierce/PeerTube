@@ -1,11 +1,32 @@
 import { DatePipe } from '@angular/common'
 
-const datePipe = new DatePipe('en')
-function dateToHuman (date: string) {
-  return datePipe.transform(date, 'medium')
+let datePipe: DatePipe
+let intl: Intl.DateTimeFormat
+
+export type DateFormat = 'medium' | 'precise'
+
+export function dateToHuman (localeId: string, date: Date, format: 'medium' | 'precise' = 'medium') {
+  if (!datePipe) {
+    datePipe = new DatePipe(localeId)
+  }
+
+  if (!intl) {
+    intl = new Intl.DateTimeFormat(localeId, {
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      year: '2-digit',
+      month: 'numeric',
+      day: 'numeric',
+      fractionalSecondDigits: 3
+    })
+  }
+
+  if (format === 'medium') return datePipe.transform(date, format)
+  if (format === 'precise') return intl.format(date)
 }
 
-function durationToString (duration: number) {
+export function durationToString (duration: number) {
   const hours = Math.floor(duration / 3600)
   const minutes = Math.floor((duration % 3600) / 60)
   const seconds = duration % 60
@@ -17,9 +38,4 @@ function durationToString (duration: number) {
   return (
     displayedHours + minutesPadding + minutes.toString() + ':' + secondsPadding + seconds.toString()
   ).replace(/^0/, '')
-}
-
-export {
-  durationToString,
-  dateToHuman
 }

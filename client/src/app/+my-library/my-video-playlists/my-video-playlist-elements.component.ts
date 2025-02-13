@@ -1,16 +1,37 @@
-import { Subject, Subscription } from 'rxjs'
-import { CdkDragDrop } from '@angular/cdk/drag-drop'
+import { CdkDrag, CdkDragDrop, CdkDropList } from '@angular/cdk/drag-drop'
+import { NgFor, NgIf } from '@angular/common'
 import { Component, OnDestroy, OnInit, ViewChild } from '@angular/core'
 import { ActivatedRoute, Router } from '@angular/router'
-import { ComponentPagination, ConfirmService, Notifier, ScreenService } from '@app/core'
-import { DropdownAction } from '@app/shared/shared-main'
-import { VideoShareComponent } from '@app/shared/shared-share-modal'
-import { VideoPlaylist, VideoPlaylistElement, VideoPlaylistService } from '@app/shared/shared-video-playlist'
-import { VideoPlaylistType } from '@shared/models'
+import { ComponentPagination, ConfirmService, HooksService, Notifier, ScreenService, updatePaginationOnDelete } from '@app/core'
+import { ButtonComponent } from '@app/shared/shared-main/buttons/button.component'
+import { VideoShareComponent } from '@app/shared/shared-share-modal/video-share.component'
+import { VideoPlaylistElement } from '@app/shared/shared-video-playlist/video-playlist-element.model'
+import { VideoPlaylist } from '@app/shared/shared-video-playlist/video-playlist.model'
+import { VideoPlaylistService } from '@app/shared/shared-video-playlist/video-playlist.service'
+import { VideoPlaylistType } from '@peertube/peertube-models'
+import { Subject, Subscription } from 'rxjs'
+import { GlobalIconComponent } from '../../shared/shared-icons/global-icon.component'
+import { ActionDropdownComponent, DropdownAction } from '../../shared/shared-main/buttons/action-dropdown.component'
+import { InfiniteScrollerDirective } from '../../shared/shared-main/common/infinite-scroller.directive'
+import { VideoPlaylistElementMiniatureComponent } from '../../shared/shared-video-playlist/video-playlist-element-miniature.component'
+import { VideoPlaylistMiniatureComponent } from '../../shared/shared-video-playlist/video-playlist-miniature.component'
 
 @Component({
   templateUrl: './my-video-playlist-elements.component.html',
-  styleUrls: [ './my-video-playlist-elements.component.scss' ]
+  styleUrls: [ './my-video-playlist-elements.component.scss' ],
+  imports: [
+    NgIf,
+    ButtonComponent,
+    VideoPlaylistMiniatureComponent,
+    GlobalIconComponent,
+    ActionDropdownComponent,
+    InfiniteScrollerDirective,
+    CdkDropList,
+    NgFor,
+    CdkDrag,
+    VideoPlaylistElementMiniatureComponent,
+    VideoShareComponent
+  ]
 })
 export class MyVideoPlaylistElementsComponent implements OnInit, OnDestroy {
   @ViewChild('videoShareModal') videoShareModal: VideoShareComponent
@@ -32,6 +53,7 @@ export class MyVideoPlaylistElementsComponent implements OnInit, OnDestroy {
   private paramsSub: Subscription
 
   constructor (
+    private hooks: HooksService,
     private notifier: Notifier,
     private router: Router,
     private confirmService: ConfirmService,
@@ -46,7 +68,7 @@ export class MyVideoPlaylistElementsComponent implements OnInit, OnDestroy {
         {
           label: $localize`Update playlist`,
           iconName: 'edit',
-          linkBuilder: playlist => [ '/my-library', 'video-playlists', 'update', playlist.uuid ]
+          linkBuilder: playlist => [ '/my-library', 'video-playlists', 'update', playlist.shortUUID ]
         },
         {
           label: $localize`Delete playlist`,
@@ -98,6 +120,7 @@ export class MyVideoPlaylistElementsComponent implements OnInit, OnDestroy {
     const oldFirst = this.findFirst()
 
     this.playlistElements = this.playlistElements.filter(v => v.id !== element.id)
+    updatePaginationOnDelete(this.pagination)
     this.reorderClientPositions(oldFirst)
   }
 
@@ -155,13 +178,18 @@ export class MyVideoPlaylistElementsComponent implements OnInit, OnDestroy {
   }
 
   private loadElements () {
-    this.videoPlaylistService.getPlaylistVideos({ videoPlaylistId: this.videoPlaylistId, componentPagination: this.pagination })
-        .subscribe(({ total, data }) => {
-          this.playlistElements = this.playlistElements.concat(data)
-          this.pagination.totalItems = total
+    this.hooks.wrapObsFun(
+      this.videoPlaylistService.getPlaylistVideos.bind(this.videoPlaylistService),
+      { videoPlaylistId: this.videoPlaylistId, componentPagination: this.pagination },
+      'my-library',
+      'filter:api.my-library.video-playlist-elements.list.params',
+      'filter:api.my-library.video-playlist-elements.list.result'
+    ).subscribe(({ total, data }) => {
+      this.playlistElements = this.playlistElements.concat(data)
+      this.pagination.totalItems = total
 
-          this.onDataSubject.next(data)
-        })
+      this.onDataSubject.next(data)
+    })
   }
 
   private loadPlaylistInfo () {

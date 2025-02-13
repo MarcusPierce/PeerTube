@@ -1,19 +1,13 @@
-<h1>
-  <my-global-icon iconName="cross" aria-hidden="true"></my-global-icon>
-  <ng-container i18n>Video blocks</ng-container>
-</h1>
-
 <p-table
-  [value]="blocklist" [paginator]="totalRecords > 0" [totalRecords]="totalRecords" [rows]="rowsPerPage" [rowsPerPageOptions]="rowsPerPageOptions"
-  [sortField]="sort.field" [sortOrder]="sort.order" dataKey="id"
+  [value]="blocklist" [paginator]="totalRecords > 0" [totalRecords]="totalRecords" [rows]="rowsPerPage" [first]="pagination.start"
+  [rowsPerPageOptions]="rowsPerPageOptions" [sortField]="sort.field" [sortOrder]="sort.order" dataKey="id"
   [lazy]="true" (onLazyLoad)="loadLazy($event)" [lazyLoadOnInit]="false"
-  [showCurrentPageReport]="true" i18n-currentPageReportTemplate
-  currentPageReportTemplate="Showing {{'{first}'}} to {{'{last}'}} of {{'{totalRecords}'}} blocked videos"
-  (onPage)="onPage($event)" [expandedRowKeys]="expandedRows"
+  [showCurrentPageReport]="true" [currentPageReportTemplate]="getPaginationTemplate()"
+  [expandedRowKeys]="expandedRows"
 >
   <ng-template pTemplate="caption">
     <div class="caption">
-      <div class="ml-auto">
+      <div class="ms-auto">
         <my-advanced-input-filter [filters]="inputFilters" (search)="onSearch($event)"></my-advanced-input-filter>
       </div>
     </div>
@@ -21,26 +15,33 @@
 
   <ng-template pTemplate="header">
     <tr>
-      <th style="width: 40px;"></th>
-      <th style="width: 150px;"></th>
-      <th i18n pSortableColumn="name">Video <p-sortIcon field="name"></p-sortIcon></th>
-      <th style="width: 100px;" i18n>Sensitive</th>
-      <th style="width: 120px;" i18n>Unfederated</th>
-      <th style="width: 150px;" i18n pSortableColumn="createdAt">Date <p-sortIcon field="createdAt"></p-sortIcon></th>
+      <th scope="col" style="width: 40px;">
+        <span i18n class="visually-hidden">More information</span>
+      </th>
+      <th scope="col" style="width: 150px;">
+        <span i18n class="visually-hidden">Actions</span>
+      </th>
+      <th scope="col" i18n [ngbTooltip]="sortTooltip" container="body" pSortableColumn="name">Video <p-sortIcon field="name"></p-sortIcon></th>
+      <th scope="col" style="width: 100px;" i18n>Sensitive</th>
+      <th scope="col" style="width: 120px;" i18n>Unfederated</th>
+      <th scope="col" style="width: 150px;" i18n [ngbTooltip]="sortTooltip" container="body" pSortableColumn="createdAt">Date <p-sortIcon field="createdAt"></p-sortIcon></th>
     </tr>
   </ng-template>
 
   <ng-template pTemplate="body" let-videoBlock let-expanded="expanded">
     <tr>
-      <td *ngIf="!videoBlock.reason"></td>
-      <td class="expand-cell" *ngIf="videoBlock.reason" [pRowToggler]="videoBlock">
-        <my-table-expander-icon [expanded]="expanded"></my-table-expander-icon>
+      <td *ngIf="!videoBlock.reason">
+        <span i18n class="visually-hidden">No more information is available for this row</span>
+      </td>
+
+      <td class="expand-cell" *ngIf="videoBlock.reason" >
+        <my-table-expander-icon [pRowToggler]="videoBlock" [expanded]="expanded"></my-table-expander-icon>
       </td>
 
       <td class="action-cell">
         <my-action-dropdown
           [ngClass]="{ 'show': expanded }" placement="bottom-right auto" container="body"
-          i18n-label label="Actions" [actions]="videoBlocklistActions" [entry]="videoBlock"
+          i18n-label label="Actions" [actions]="videoBlocklistActions" [entry]="videoBlock" buttonSize="small"
         ></my-action-dropdown>
       </td>
 
@@ -53,22 +54,22 @@
       </td>
 
       <td>
-        <span *ngIf="videoBlock.video.nsfw" class="badge badge-red" i18n>NSFW</span>
+        <span *ngIf="videoBlock.video.nsfw" class="pt-badge badge-red" i18n>NSFW</span>
       </td>
 
       <td>
-        <span *ngIf="videoBlock.unfederated" class="badge badge-blue" i18n>Unfederated</span>
+        <span *ngIf="videoBlock.unfederated" class="pt-badge badge-blue" i18n>Unfederated</span>
       </td>
 
       <td>
-        {{ videoBlock.createdAt | date: 'short' }}
+        {{ videoBlock.createdAt | ptDate: 'short' }}
       </td>
     </tr>
   </ng-template>
 
   <ng-template pTemplate="rowexpansion" let-videoBlock>
     <tr>
-      <td class="expand-cell" colspan="6">
+      <td class="expand-cell" myAutoColspan>
         <div class="d-flex moderation-expanded">
 
           <div class="left">
@@ -87,7 +88,7 @@
 
   <ng-template pTemplate="emptymessage">
     <tr>
-      <td colspan="6">
+      <td myAutoColspan>
         <div class="no-results">
           <ng-container *ngIf="search" i18n>No blocked video found matching current filters.</ng-container>
           <ng-container *ngIf="!search" i18n>No blocked video found.</ng-container>

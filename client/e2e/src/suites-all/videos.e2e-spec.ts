@@ -1,5 +1,5 @@
 import { LoginPage } from '../po/login.po'
-import { MyAccountPage } from '../po/my-account'
+import { MyAccountPage } from '../po/my-account.po'
 import { PlayerPage } from '../po/player.po'
 import { VideoListPage } from '../po/video-list.po'
 import { VideoUpdatePage } from '../po/video-update.po'
@@ -49,7 +49,7 @@ describe('Videos all workflow', () => {
     videoUploadPage = new VideoUploadPage()
     videoUpdatePage = new VideoUpdatePage()
     myAccountPage = new MyAccountPage()
-    loginPage = new LoginPage()
+    loginPage = new LoginPage(isMobileDevice())
     playerPage = new PlayerPage()
     videoListPage = new VideoListPage(isMobileDevice(), isSafari())
 
@@ -72,7 +72,7 @@ describe('Videos all workflow', () => {
 
     await videoUploadPage.navigateTo()
 
-    await videoUploadPage.uploadVideo()
+    await videoUploadPage.uploadVideo('video.mp4')
     return videoUploadPage.validSecondUploadStep(videoName)
   })
 
@@ -89,7 +89,7 @@ describe('Videos all workflow', () => {
     let videoNameToExcept = videoName
 
     if (isMobileDevice() || isSafari()) {
-      await go(FIXTURE_URLS.WEBTORRENT_VIDEO)
+      await go(FIXTURE_URLS.WEB_VIDEO)
       videoNameToExcept = 'E2E tests'
     } else {
       await videoListPage.clickOnVideo(videoName)
@@ -147,7 +147,7 @@ describe('Videos all workflow', () => {
 
     await videoUploadPage.navigateTo()
 
-    await videoUploadPage.uploadVideo()
+    await videoUploadPage.uploadVideo('video2.mp4')
     await videoUploadPage.validSecondUploadStep(video2Name)
 
     await videoWatchPage.clickOnSave()
@@ -173,10 +173,10 @@ describe('Videos all workflow', () => {
 
     await myAccountPage.playPlaylist()
 
-    await videoWatchPage.waitUntilVideoName(video2Name, 30 * 1000)
+    await videoWatchPage.waitUntilVideoName(video2Name, 40 * 1000)
   })
 
-  it('Should watch the webtorrent playlist in the embed', async () => {
+  it('Should watch the Web Video playlist in the embed', async () => {
     if (isUploadUnsupported()) return
 
     const accessToken = await browser.execute(`return window.localStorage.getItem('access_token');`)

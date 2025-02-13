@@ -1,5 +1,4 @@
-import { Observable } from 'rxjs'
-import { getLocaleDirection } from '@angular/common'
+import { getLocaleDirection, NgClass, NgFor, NgIf } from '@angular/common'
 import {
   Component,
   ElementRef,
@@ -13,30 +12,55 @@ import {
   SimpleChanges,
   ViewChild
 } from '@angular/core'
-import { Router } from '@angular/router'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { Notifier, User } from '@app/core'
 import { VIDEO_COMMENT_TEXT_VALIDATOR } from '@app/shared/form-validators/video-comment-validators'
-import { FormReactive, FormValidatorService } from '@app/shared/shared-forms'
-import { Video } from '@app/shared/shared-main'
-import { VideoComment, VideoCommentService } from '@app/shared/shared-video-comment'
+import { FormReactive } from '@app/shared/shared-forms/form-reactive'
+import { FormReactiveService } from '@app/shared/shared-forms/form-reactive.service'
+import { LoginLinkComponent } from '@app/shared/shared-main/users/login-link.component'
+import { Video } from '@app/shared/shared-main/video/video.model'
+import { VideoComment } from '@app/shared/shared-video-comment/video-comment.model'
+import { VideoCommentService } from '@app/shared/shared-video-comment/video-comment.service'
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap'
-import { VideoCommentCreate } from '@shared/models'
+import { VideoCommentCreate } from '@peertube/peertube-models'
+import { Observable } from 'rxjs'
+import { ActorAvatarComponent } from '../../../../shared/shared-actor-image/actor-avatar.component'
+import { TextareaAutoResizeDirective } from '../../../../shared/shared-forms/textarea-autoresize.directive'
+import { GlobalIconComponent } from '../../../../shared/shared-icons/global-icon.component'
+import { HelpComponent } from '../../../../shared/shared-main/buttons/help.component'
+import { PeerTubeTemplateDirective } from '../../../../shared/shared-main/common/peertube-template.directive'
+import { RemoteSubscribeComponent } from '../../../../shared/shared-user-subscription/remote-subscribe.component'
 
 @Component({
   selector: 'my-video-comment-add',
   templateUrl: './video-comment-add.component.html',
-  styleUrls: [ './video-comment-add.component.scss' ]
+  styleUrls: [ './video-comment-add.component.scss' ],
+  imports: [
+    FormsModule,
+    ReactiveFormsModule,
+    ActorAvatarComponent,
+    TextareaAutoResizeDirective,
+    NgClass,
+    HelpComponent,
+    PeerTubeTemplateDirective,
+    NgIf,
+    GlobalIconComponent,
+    RemoteSubscribeComponent,
+    LoginLinkComponent,
+    NgFor
+  ]
 })
 export class VideoCommentAddComponent extends FormReactive implements OnChanges, OnInit {
   @Input() user: User
   @Input() video: Video
+  @Input() videoPassword: string
   @Input() parentComment?: VideoComment
   @Input() parentComments?: VideoComment[]
   @Input() focusOnInit = false
   @Input() textValue?: string
 
   @Output() commentCreated = new EventEmitter<VideoComment>()
-  @Output() cancel = new EventEmitter()
+  @Output() cancelEdit = new EventEmitter()
 
   @ViewChild('visitorModal', { static: true }) visitorModal: NgbModal
   @ViewChild('emojiModal', { static: true }) emojiModal: NgbModal
@@ -45,30 +69,16 @@ export class VideoCommentAddComponent extends FormReactive implements OnChanges,
   addingComment = false
   addingCommentButtonValue: string
 
+  private emojiMarkupList: { emoji: string, name: string }[]
+
   constructor (
-    protected formValidatorService: FormValidatorService,
+    protected formReactiveService: FormReactiveService,
     private notifier: Notifier,
     private videoCommentService: VideoCommentService,
     private modalService: NgbModal,
-    private router: Router,
     @Inject(LOCALE_ID) private localeId: string
   ) {
     super()
-  }
-
-  get emojiMarkupList () {
-    const emojiMarkupObjectList = require('markdown-it-emoji/lib/data/light.json')
-
-    // Populate emoji-markup-list from object to array to avoid keys alphabetical order
-    const emojiMarkupArrayList = []
-    for (const emojiMarkupName in emojiMarkupObjectList) {
-      if (emojiMarkupName) {
-        const emoji = emojiMarkupObjectList[emojiMarkupName]
-        emojiMarkupArrayList.push([ emoji, emojiMarkupName ])
-      }
-    }
-
-    return emojiMarkupArrayList
   }
 
   ngOnInit () {
@@ -96,8 +106,22 @@ export class VideoCommentAddComponent extends FormReactive implements OnChanges,
     }
   }
 
+  getEmojiMarkupList () {
+    if (this.emojiMarkupList) return this.emojiMarkupList
+
+    const emojiMarkupObjectList = require('markdown-it-emoji/lib/data/light.mjs').default
+
+    this.emojiMarkupList = []
+    for (const name of Object.keys(emojiMarkupObjectList)) {
+      const emoji = emojiMarkupObjectList[name]
+      this.emojiMarkupList.push({ emoji, name })
+    }
+
+    return this.emojiMarkupList
+  }
+
   onValidKey () {
-    this.check()
+    this.forceCheck()
     if (!this.form.valid) return
 
     this.formValidated()
@@ -147,7 +171,7 @@ export class VideoCommentAddComponent extends FormReactive implements OnChanges,
       error: err => {
         this.addingComment = false
 
-        this.notifier.error(err.text)
+        this.notifier.error(err.message)
       }
     })
   }
@@ -160,13 +184,8 @@ export class VideoCommentAddComponent extends FormReactive implements OnChanges,
     return window.location.href
   }
 
-  gotoLogin () {
-    this.hideModals()
-    this.router.navigate([ '/login' ])
-  }
-
   cancelCommentReply () {
-    this.cancel.emit(null)
+    this.cancelEdit.emit(null)
     this.form.value['text'] = this.textareaElement.nativeElement.value = ''
   }
 
@@ -174,14 +193,25 @@ export class VideoCommentAddComponent extends FormReactive implements OnChanges,
     return getLocaleDirection(this.localeId) === 'rtl'
   }
 
+  getAvatarActorType () {
+    if (this.user) return 'account'
+
+    return 'unlogged'
+  }
+
   private addCommentReply (commentCreate: VideoCommentCreate) {
     return this.videoCommentService
-      .addCommentReply(this.video.id, this.parentComment.id, commentCreate)
+      .addCommentReply({
+        videoId: this.video.uuid,
+        inReplyToCommentId: this.parentComment.id,
+        comment: commentCreate,
+        videoPassword: this.videoPassword
+      })
   }
 
   private addCommentThread (commentCreate: VideoCommentCreate) {
     return this.videoCommentService
-      .addCommentThread(this.video.id, commentCreate)
+      .addCommentThread(this.video.uuid, commentCreate, this.videoPassword)
   }
 
   private initTextValue () {

@@ -1,12 +1,18 @@
 import { Component, Input, OnInit } from '@angular/core'
 import { Notifier } from '@app/core'
-import { FormReactive, FormValidatorService } from '@app/shared/shared-forms'
+import { FormReactive } from '@app/shared/shared-forms/form-reactive'
+import { FormReactiveService } from '@app/shared/shared-forms/form-reactive.service'
+import { logger } from '@root-helpers/logger'
 import { USER_HANDLE_VALIDATOR } from '../form-validators/user-validators'
+import { PeerTubeTemplateDirective } from '../shared-main/common/peertube-template.directive'
+import { HelpComponent } from '../shared-main/buttons/help.component'
+import { NgIf } from '@angular/common'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
 
 @Component({
   selector: 'my-remote-subscribe',
   templateUrl: './remote-subscribe.component.html',
-  styleUrls: [ './remote-subscribe.component.scss' ]
+  imports: [ FormsModule, ReactiveFormsModule, NgIf, HelpComponent, PeerTubeTemplateDirective ]
 })
 export class RemoteSubscribeComponent extends FormReactive implements OnInit {
   @Input() uri: string
@@ -14,7 +20,7 @@ export class RemoteSubscribeComponent extends FormReactive implements OnInit {
   @Input() showHelp = false
 
   constructor (
-    protected formValidatorService: FormValidatorService,
+    protected formReactiveService: FormReactiveService,
     private notifier: Notifier
   ) {
     super()
@@ -27,14 +33,16 @@ export class RemoteSubscribeComponent extends FormReactive implements OnInit {
   }
 
   onValidKey () {
-    this.check()
+    this.forceCheck()
     if (!this.form.valid) return
 
     this.formValidated()
   }
 
   formValidated () {
-    const address = this.form.value['text']
+    let address = this.form.value['text'] || ''
+    address = address.replace(/^@/, '')
+
     const [ username, hostname ] = address.split('@')
 
     const protocol = window.location.protocol
@@ -59,7 +67,7 @@ export class RemoteSubscribeComponent extends FormReactive implements OnInit {
       })
       .then(window.open)
       .catch(err => {
-        console.error(err)
+        logger.error(err)
 
         this.notifier.error($localize`Cannot fetch information of this remote account`)
       })

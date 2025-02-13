@@ -1,12 +1,13 @@
-@use '_mixins' as *;
 @use '_variables' as *;
+@use '_mixins' as *;
+@use '_form-mixins' as *;
 
-my-input-toggle-hidden {
-  width: 100%;
+my-timestamp-input {
+  width: 100px;
 }
 
-.title-page.title-page-single {
-  margin-top: 0;
+my-input-text {
+  width: 100%;
 }
 
 .playlist {
@@ -29,7 +30,8 @@ my-input-toggle-hidden {
   flex-direction: column;
 }
 
-.alert {
+.alert,
+.embed {
   margin-top: 20px;
 }
 
@@ -41,24 +43,7 @@ my-input-toggle-hidden {
   }
 
   .advanced-filters-button {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-top: 20px;
-    font-size: 16px;
     font-weight: $font-semibold;
-    cursor: pointer;
-
-    .glyphicon {
-      @include margin-right(5px);
-    }
-  }
-
-  .form-group {
-    margin-bottom: 0;
-    height: 34px;
-    display: flex;
-    align-items: center;
   }
 
   .video-caption-block {
@@ -86,4 +71,9 @@ my-input-toggle-hidden {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+}
+
+h5 {
+  font-size: 1.15rem;
 }

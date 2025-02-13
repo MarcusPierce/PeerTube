@@ -1,9 +1,9 @@
 import { of } from 'rxjs'
-import { catchError, map } from 'rxjs/operators'
+import { catchError } from 'rxjs/operators'
 import { HttpClient } from '@angular/common/http'
 import { Injectable } from '@angular/core'
 import { RestExtractor } from '@app/core'
-import { CustomPage } from '@shared/models'
+import { CustomPage } from '@peertube/peertube-models'
 import { environment } from '../../../../environments/environment'
 
 @Injectable()
@@ -23,16 +23,13 @@ export class CustomPageService {
                               return of({ content: '' })
                             }
 
-                            this.restExtractor.handleError(err)
+                            return this.restExtractor.handleError(err)
                           })
                         )
   }
 
   updateInstanceHomepage (content: string) {
     return this.authHttp.put(CustomPageService.BASE_INSTANCE_HOMEPAGE_URL, { content })
-      .pipe(
-        map(this.restExtractor.extractDataBool),
-        catchError(err => this.restExtractor.handleError(err))
-      )
+      .pipe(catchError(err => this.restExtractor.handleError(err)))
   }
 }

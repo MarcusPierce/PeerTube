@@ -4,13 +4,18 @@ import { ListKeyManager } from '@angular/cdk/a11y'
 import { AfterViewChecked, Component, OnDestroy, OnInit, QueryList, ViewChildren } from '@angular/core'
 import { ActivatedRoute, Params, Router } from '@angular/router'
 import { AuthService, ServerService } from '@app/core'
-import { HTMLServerConfig, SearchTargetType } from '@shared/models'
+import { logger } from '@root-helpers/logger'
+import { HTMLServerConfig, SearchTargetType } from '@peertube/peertube-models'
 import { SuggestionComponent, SuggestionPayload, SuggestionPayloadType } from './suggestion.component'
+import { NgFor, NgIf, NgClass } from '@angular/common'
+import { GlobalIconComponent } from '../shared/shared-icons/global-icon.component'
+import { FormsModule } from '@angular/forms'
 
 @Component({
   selector: 'my-search-typeahead',
   templateUrl: './search-typeahead.component.html',
-  styleUrls: [ './search-typeahead.component.scss' ]
+  styleUrls: [ './search-typeahead.component.scss' ],
+  imports: [ FormsModule, GlobalIconComponent, NgFor, SuggestionComponent, NgIf, NgClass ]
 })
 export class SearchTypeaheadComponent implements OnInit, AfterViewChecked, OnDestroy {
   @ViewChildren(SuggestionComponent) suggestionItems: QueryList<SuggestionComponent>
@@ -64,10 +69,6 @@ export class SearchTypeaheadComponent implements OnInit, AfterViewChecked, OnDes
     if (this.keyboardEventsManager) this.keyboardEventsManager.change.unsubscribe()
   }
 
-  areInstructionsDisplayed () {
-    return !this.search
-  }
-
   showSearchGlobalHelp () {
     return this.search && this.areSuggestionsOpened && this.keyboardEventsManager?.activeItem?.result?.type === 'search-index'
   }
@@ -91,7 +92,7 @@ export class SearchTypeaheadComponent implements OnInit, AfterViewChecked, OnDes
 
     const activeIndex = this.suggestionItems.toArray().findIndex(i => i.result.default === true)
     if (activeIndex === -1) {
-      console.error('Cannot find active index.', { suggestionItems: this.suggestionItems })
+      logger.error('Cannot find active index.', { suggestionItems: this.suggestionItems })
     }
 
     this.updateItemsState(activeIndex)
@@ -152,7 +153,7 @@ export class SearchTypeaheadComponent implements OnInit, AfterViewChecked, OnDes
     }
   }
 
-  onSuggestionlicked (payload: SuggestionPayload) {
+  onSuggestionClicked (payload: SuggestionPayload) {
     this.doSearch(this.buildSearchTarget(payload))
   }
 
@@ -169,6 +170,11 @@ export class SearchTypeaheadComponent implements OnInit, AfterViewChecked, OnDes
         event.stopPropagation()
 
         this.keyboardEventsManager.onKeydown(event)
+        break
+
+      case 'Enter':
+        event.stopPropagation()
+        this.doSearch()
         break
     }
   }

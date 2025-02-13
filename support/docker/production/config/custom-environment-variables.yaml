@@ -1,3 +1,8 @@
+#
+# This file will be read by node-config
+# See https://github.com/node-config/node-config/wiki/Environment-Variables#custom-environment-variables
+#
+
 webserver:
   hostname: "PEERTUBE_WEBSERVER_HOSTNAME"
   port:
@@ -6,6 +11,14 @@ webserver:
   https:
     __name: "PEERTUBE_WEBSERVER_HTTPS"
     __format: "json"
+
+federation:
+  sign_federated_fetches:
+    __name: "PEERTUBE_SIGN_FEDERATED_FETCHES"
+    __format: "json"
+
+secrets:
+  peertube: "PEERTUBE_SECRET"
 
 trust_proxy:
   __name: "PEERTUBE_TRUST_PROXY"
@@ -16,6 +29,7 @@ database:
   port:
     __name: "PEERTUBE_DB_PORT"
     __format: "json"
+  name: "PEERTUBE_DB_NAME"
   suffix: "PEERTUBE_DB_SUFFIX"
   username: "PEERTUBE_DB_USERNAME"
   password: "PEERTUBE_DB_PASSWORD"
@@ -54,19 +68,54 @@ object_storage:
 
   region: "PEERTUBE_OBJECT_STORAGE_REGION"
 
+  upload_acl:
+    public: "PEERTUBE_OBJECT_STORAGE_UPLOAD_ACL_PUBLIC"
+    private: "PEERTUBE_OBJECT_STORAGE_UPLOAD_ACL_PRIVATE"
+
+  proxy:
+    proxify_private_files:
+      __name: "PEERTUBE_OBJECT_STORAGE_PROXY_PROXIFY_PRIVATE_FILES"
+      __format: "json"
+
+  credentials:
+    access_key_id: "PEERTUBE_OBJECT_STORAGE_CREDENTIALS_ACCESS_KEY_ID"
+    secret_access_key: 'PEERTUBE_OBJECT_STORAGE_CREDENTIALS_SECRET_ACCESS_KEY'
+
   max_upload_part:
     __name: "PEERTUBE_OBJECT_STORAGE_MAX_UPLOAD_PART"
+    __format: "json"
+
+  max_request_attempts:
+    __name: "PEERTUBE_OBJECT_STORAGE_MAX_REQUEST_ATTEMPTS"
     __format: "json"
 
   streaming_playlists:
     bucket_name: "PEERTUBE_OBJECT_STORAGE_STREAMING_PLAYLISTS_BUCKET_NAME"
     prefix: "PEERTUBE_OBJECT_STORAGE_STREAMING_PLAYLISTS_PREFIX"
     base_url: "PEERTUBE_OBJECT_STORAGE_STREAMING_PLAYLISTS_BASE_URL"
+    store_live_streams:
+      __name: "PEERTUBE_OBJECT_STORAGE_STREAMING_PLAYLISTS_STORE_LIVE_STREAMS"
+      __format: "json"
 
-  videos:
-    bucket_name: "PEERTUBE_OBJECT_STORAGE_VIDEOS_BUCKET_NAME"
-    prefix: "PEERTUBE_OBJECT_STORAGE_VIDEOS_PREFIX"
-    base_url: "PEERTUBE_OBJECT_STORAGE_VIDEOS_BASE_URL"
+  web_videos:
+    bucket_name: "PEERTUBE_OBJECT_STORAGE_WEB_VIDEOS_BUCKET_NAME"
+    prefix: "PEERTUBE_OBJECT_STORAGE_WEB_VIDEOS_PREFIX"
+    base_url: "PEERTUBE_OBJECT_STORAGE_WEB_VIDEOS_BASE_URL"
+
+  user_exports:
+    bucket_name: "PEERTUBE_OBJECT_STORAGE_USER_EXPORTS_BUCKET_NAME"
+    prefix: "PEERTUBE_OBJECT_STORAGE_USER_EXPORTS_PREFIX"
+    base_url: "PEERTUBE_OBJECT_STORAGE_USER_EXPORTS_BASE_URL"
+
+  original_video_files:
+    bucket_name: "PEERTUBE_OBJECT_STORAGE_ORIGINAL_VIDEO_FILES_BUCKET_NAME"
+    prefix: "PEERTUBE_OBJECT_STORAGE_ORIGINAL_VIDEO_FILES_PREFIX"
+    base_url: "PEERTUBE_OBJECT_STORAGE_ORIGINAL_VIDEO_FILES_BASE_URL"
+
+  captions:
+    bucket_name: "PEERTUBE_OBJECT_STORAGE_CAPTIONS_BUCKET_NAME"
+    prefix: "PEERTUBE_OBJECT_STORAGE_CAPTIONS_PREFIX"
+    base_url: "PEERTUBE_OBJECT_STORAGE_CAPTIONS_BASE_URL"
 
 webadmin:
   configuration:
@@ -154,9 +203,9 @@ transcoding:
     2160p:
       __name: "PEERTUBE_TRANSCODING_2160P"
       __format: "json"
-  webtorrent:
+  web_videos:
     enabled:
-      __name: "PEERTUBE_TRANSCODING_WEBTORRENT_ENABLED"
+      __name: "PEERTUBE_TRANSCODING_WEB_VIDEOS_ENABLED"
       __format: "json"
   hls:
     enabled:

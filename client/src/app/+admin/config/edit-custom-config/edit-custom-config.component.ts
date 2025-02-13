@@ -1,35 +1,48 @@
-
-import omit from 'lodash-es/omit'
-import { forkJoin } from 'rxjs'
-import { SelectOptionsItem } from 'src/types/select-options-item.model'
+import { NgFor, NgIf } from '@angular/common'
 import { Component, OnInit } from '@angular/core'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { ActivatedRoute, Router } from '@angular/router'
 import { ConfigService } from '@app/+admin/config/shared/config.service'
 import { Notifier } from '@app/core'
 import { ServerService } from '@app/core/server/server.service'
+import { URL_VALIDATOR } from '@app/shared/form-validators/common-validators'
 import {
   ADMIN_EMAIL_VALIDATOR,
-  CACHE_CAPTIONS_SIZE_VALIDATOR,
-  CACHE_PREVIEWS_SIZE_VALIDATOR,
+  CACHE_SIZE_VALIDATOR,
   CONCURRENCY_VALIDATOR,
-  INDEX_URL_VALIDATOR,
+  EXPORT_EXPIRATION_VALIDATOR,
+  EXPORT_MAX_USER_VIDEO_QUOTA_VALIDATOR,
   INSTANCE_NAME_VALIDATOR,
   INSTANCE_SHORT_DESCRIPTION_VALIDATOR,
   MAX_INSTANCE_LIVES_VALIDATOR,
   MAX_LIVE_DURATION_VALIDATOR,
+  MAX_SYNC_PER_USER,
   MAX_USER_LIVES_VALIDATOR,
-  SEARCH_INDEX_URL_VALIDATOR,
+  MAX_VIDEO_CHANNELS_PER_USER_VALIDATOR,
   SERVICES_TWITTER_USERNAME_VALIDATOR,
   SIGNUP_LIMIT_VALIDATOR,
   SIGNUP_MINIMUM_AGE_VALIDATOR,
-  TRANSCODING_THREADS_VALIDATOR,
-  MAX_VIDEO_CHANNELS_PER_USER_VALIDATOR
+  TRANSCODING_MAX_FPS_VALIDATOR,
+  TRANSCODING_THREADS_VALIDATOR
 } from '@app/shared/form-validators/custom-config-validators'
 import { USER_VIDEO_QUOTA_DAILY_VALIDATOR, USER_VIDEO_QUOTA_VALIDATOR } from '@app/shared/form-validators/user-validators'
-import { FormReactive, FormValidatorService } from '@app/shared/shared-forms'
-import { CustomPageService } from '@app/shared/shared-main/custom-page'
-import { CustomConfig, CustomPage, HTMLServerConfig } from '@shared/models'
+import { FormReactive } from '@app/shared/shared-forms/form-reactive'
+import { FormReactiveService } from '@app/shared/shared-forms/form-reactive.service'
+import { AlertComponent } from '@app/shared/shared-main/common/alert.component'
+import { CustomPageService } from '@app/shared/shared-main/custom-page/custom-page.service'
+import { NgbNav, NgbNavContent, NgbNavItem, NgbNavLink, NgbNavLinkBase, NgbNavOutlet } from '@ng-bootstrap/ng-bootstrap'
+import { CustomConfig, CustomPage, HTMLServerConfig } from '@peertube/peertube-models'
+import merge from 'lodash-es/merge'
+import omit from 'lodash-es/omit'
+import { forkJoin } from 'rxjs'
+import { SelectOptionsItem } from 'src/types/select-options-item.model'
+import { EditAdvancedConfigurationComponent } from './edit-advanced-configuration.component'
+import { EditBasicConfigurationComponent } from './edit-basic-configuration.component'
 import { EditConfigurationService } from './edit-configuration.service'
+import { EditHomepageComponent } from './edit-homepage.component'
+import { EditInstanceInformationComponent } from './edit-instance-information.component'
+import { EditLiveConfigurationComponent } from './edit-live-configuration.component'
+import { EditVODTranscodingComponent } from './edit-vod-transcoding.component'
 
 type ComponentCustomConfig = CustomConfig & {
   instanceCustomHomepage: CustomPage
@@ -38,7 +51,26 @@ type ComponentCustomConfig = CustomConfig & {
 @Component({
   selector: 'my-edit-custom-config',
   templateUrl: './edit-custom-config.component.html',
-  styleUrls: [ './edit-custom-config.component.scss' ]
+  styleUrls: [ './edit-custom-config.component.scss' ],
+  imports: [
+    NgIf,
+    FormsModule,
+    ReactiveFormsModule,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    EditHomepageComponent,
+    EditInstanceInformationComponent,
+    EditBasicConfigurationComponent,
+    EditVODTranscodingComponent,
+    EditLiveConfigurationComponent,
+    EditAdvancedConfigurationComponent,
+    NgbNavOutlet,
+    NgFor,
+    AlertComponent
+  ]
 })
 export class EditCustomConfigComponent extends FormReactive implements OnInit {
   activeNav: string
@@ -52,9 +84,9 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
   categoryItems: SelectOptionsItem[] = []
 
   constructor (
+    protected formReactiveService: FormReactiveService,
     private router: Router,
     private route: ActivatedRoute,
-    protected formValidatorService: FormValidatorService,
     private notifier: Notifier,
     private configService: ConfigService,
     private customPage: CustomPageService,
@@ -90,6 +122,16 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
         categories: null,
         languages: null,
 
+        serverCountry: null,
+        support: {
+          text: null
+        },
+        social: {
+          externalLink: URL_VALIDATOR,
+          mastodonLink: URL_VALIDATOR,
+          blueskyLink: URL_VALIDATOR
+        },
+
         defaultClientRoute: null,
 
         customizations: {
@@ -102,24 +144,39 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
       },
       services: {
         twitter: {
-          username: SERVICES_TWITTER_USERNAME_VALIDATOR,
-          whitelisted: null
+          username: SERVICES_TWITTER_USERNAME_VALIDATOR
+        }
+      },
+      client: {
+        videos: {
+          miniature: {
+            preferAuthorDisplayName: null
+          }
+        },
+        menu: {
+          login: {
+            redirectOnSingleExternalAuth: null
+          }
         }
       },
       cache: {
         previews: {
-          size: CACHE_PREVIEWS_SIZE_VALIDATOR
+          size: CACHE_SIZE_VALIDATOR
         },
         captions: {
-          size: CACHE_CAPTIONS_SIZE_VALIDATOR
+          size: CACHE_SIZE_VALIDATOR
         },
         torrents: {
-          size: CACHE_CAPTIONS_SIZE_VALIDATOR
+          size: CACHE_SIZE_VALIDATOR
+        },
+        storyboards: {
+          size: CACHE_SIZE_VALIDATOR
         }
       },
       signup: {
         enabled: null,
         limit: SIGNUP_LIMIT_VALIDATOR,
+        requiresApproval: null,
         requiresEmailVerification: null,
         minimumAge: SIGNUP_MINIMUM_AGE_VALIDATOR
       },
@@ -132,6 +189,21 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
           torrent: {
             enabled: null
           }
+        },
+        videoChannelSynchronization: {
+          enabled: null,
+          maxPerUser: MAX_SYNC_PER_USER
+
+        },
+        users: {
+          enabled: null
+        }
+      },
+      export: {
+        users: {
+          enabled: null,
+          maxUserVideoQuota: EXPORT_MAX_USER_VIDEO_QUOTA_VALIDATOR,
+          exportExpiration: EXPORT_EXPIRATION_VALIDATOR
         }
       },
       trending: {
@@ -149,6 +221,11 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
         enabled: null
       },
       user: {
+        history: {
+          videos: {
+            enabled: null
+          }
+        },
         videoQuota: USER_VIDEO_QUOTA_VALIDATOR,
         videoQuotaDaily: USER_VIDEO_QUOTA_DAILY_VALIDATOR
       },
@@ -163,11 +240,22 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
         profile: null,
         concurrency: CONCURRENCY_VALIDATOR,
         resolutions: {},
+        alwaysTranscodeOriginalResolution: null,
+        originalFile: {
+          keep: null
+        },
         hls: {
+          enabled: null,
+          splitAudioAndVideo: null
+        },
+        webVideos: {
           enabled: null
         },
-        webtorrent: {
+        remoteRunners: {
           enabled: null
+        },
+        fps: {
+          max: TRANSCODING_MAX_FPS_VALIDATOR
         }
       },
       live: {
@@ -177,12 +265,39 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
         maxInstanceLives: MAX_INSTANCE_LIVES_VALIDATOR,
         maxUserLives: MAX_USER_LIVES_VALIDATOR,
         allowReplay: null,
+        latencySetting: {
+          enabled: null
+        },
 
         transcoding: {
           enabled: null,
           threads: TRANSCODING_THREADS_VALIDATOR,
           profile: null,
-          resolutions: {}
+          resolutions: {},
+          alwaysTranscodeOriginalResolution: null,
+          remoteRunners: {
+            enabled: null
+          },
+          fps: {
+            max: TRANSCODING_MAX_FPS_VALIDATOR
+          }
+        }
+      },
+      videoStudio: {
+        enabled: null,
+        remoteRunners: {
+          enabled: null
+        }
+      },
+      videoTranscription: {
+        enabled: null,
+        remoteRunners: {
+          enabled: null
+        }
+      },
+      videoFile: {
+        update: {
+          enabled: null
         }
       },
       autoBlacklist: {
@@ -205,7 +320,7 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
           },
           autoFollowIndex: {
             enabled: null,
-            indexUrl: INDEX_URL_VALIDATOR
+            indexUrl: URL_VALIDATOR
           }
         }
       },
@@ -222,7 +337,7 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
         },
         searchIndex: {
           enabled: null,
-          url: SEARCH_INDEX_URL_VALIDATOR,
+          url: URL_VALIDATOR,
           disableLocalSearch: null,
           isDefaultSearch: null
         }
@@ -230,26 +345,28 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
 
       instanceCustomHomepage: {
         content: null
+      },
+
+      storyboards: {
+        enabled: null
       }
     }
 
     const defaultValues = {
       transcoding: {
-        resolutions: {}
+        resolutions: {} as { [id: string]: string }
       },
       live: {
         transcoding: {
-          resolutions: {}
+          resolutions: {} as { [id: string]: string }
         }
       }
     }
 
-    for (const resolution of this.editConfigurationService.getVODResolutions()) {
+    for (const resolution of this.editConfigurationService.getTranscodingResolutions()) {
       defaultValues.transcoding.resolutions[resolution.id] = 'false'
       formGroupData.transcoding.resolutions[resolution.id] = null
-    }
 
-    for (const resolution of this.editConfigurationService.getLiveResolutions()) {
       defaultValues.live.transcoding.resolutions[resolution.id] = 'false'
       formGroupData.live.transcoding.resolutions[resolution.id] = null
     }
@@ -269,7 +386,10 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
   }
 
   formValidated () {
-    const value: ComponentCustomConfig = this.form.getRawValue()
+    this.forceCheck()
+    if (!this.form.valid) return
+
+    const value: ComponentCustomConfig = merge(this.customConfig, this.form.getRawValue())
 
     forkJoin([
       this.configService.updateCustomConfig(omit(value, 'instanceCustomHomepage')),
@@ -277,9 +397,7 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
     ])
       .subscribe({
         next: ([ resConfig ]) => {
-          const instanceCustomHomepage = {
-            content: value.instanceCustomHomepage.content
-          }
+          const instanceCustomHomepage = { content: value.instanceCustomHomepage.content }
 
           this.customConfig = { ...resConfig, instanceCustomHomepage }
 
@@ -358,8 +476,7 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
         this.customConfig = { ...config, instanceCustomHomepage: homepage }
 
         this.updateForm()
-        // Force form validation
-        this.forceCheck()
+        this.markAllAsDirty()
       },
 
       error: err => this.notifier.error(err.message)
@@ -373,7 +490,7 @@ export class EditCustomConfigComponent extends FormReactive implements OnInit {
     ]).subscribe({
       next: ([ languages, categories ]) => {
         this.languageItems = languages.map(l => ({ label: l.label, id: l.id }))
-        this.categoryItems = categories.map(l => ({ label: l.label, id: l.id + '' }))
+        this.categoryItems = categories.map(l => ({ label: l.label, id: l.id }))
       },
 
       error: err => this.notifier.error(err.message)

@@ -1,6 +1,10 @@
 <div *ngIf="isCommentDisplayed()" class="root-comment" [ngClass]="{ 'is-child': isChild() }">
   <div class="left">
-    <my-actor-avatar *ngIf="!comment.isDeleted" [href]="comment.account.url" [account]="comment.account"></my-actor-avatar>
+    <my-actor-avatar
+      *ngIf="!comment.isDeleted" [href]="comment.account.url"
+      [actor]="comment.account" actorType="account" [size]="isChild() ? '25' : '36'"
+    ></my-actor-avatar>
+
     <div class="vertical-border"></div>
   </div>
 
@@ -16,13 +20,15 @@
                 {{ comment.account.displayName }}
               </span>
 
-              <span class="comment-account-fid ml-1">{{ comment.by }}</span>
+              <span class="comment-account-fid ms-1">{{ comment.by }}</span>
             </a>
           </div>
 
           <a [routerLink]="['/w', video.shortUUID, { 'threadId': comment.threadId }]" class="comment-date" [title]="comment.createdAt">
             {{ comment.createdAt | myFromNow }}
           </a>
+
+          <span *ngIf="comment.heldForReview" class="pt-badge badge-red ms-2" i18n>Pending review</span>
         </div>
 
         <div
@@ -33,10 +39,10 @@
         ></div>
 
         <div class="comment-actions">
-          <div tabindex=0 (click)="onWantToReply()" class="comment-action-reply" i18n>Reply</div>
+          <button (click)="onWantToReply()" class="comment-action-reply border-0 p-0" i18n>Reply</button>
 
           <my-user-moderation-dropdown
-            [prependActions]="prependModerationActions" tabindex=0 [buttonStyled]="false"
+            [prependActions]="prependModerationActions" [buttonStyled]="false"
             buttonSize="small" [account]="commentAccount" [user]="commentUser" i18n-label label="Options" placement="bottom-left auto"
           ></my-user-moderation-dropdown>
         </div>
@@ -58,11 +64,12 @@
         *ngIf="!comment.isDeleted && inReplyToCommentId === comment.id"
         [user]="user"
         [video]="video"
+        [videoPassword]="videoPassword"
         [parentComment]="comment"
         [parentComments]="newParentComments"
         [focusOnInit]="true"
         (commentCreated)="onCommentReplyCreated($event)"
-        (cancel)="onResetReply()"
+        (cancelEdit)="onResetReply()"
         [textValue]="redraftValue"
       ></my-video-comment-add>
 
@@ -71,12 +78,14 @@
           <my-video-comment
             [comment]="commentChild.comment"
             [video]="video"
+            [videoPassword]="videoPassword"
             [inReplyToCommentId]="inReplyToCommentId"
             [commentTree]="commentChild"
             [parentComments]="newParentComments"
             (wantedToReply)="onWantToReply($event)"
             (wantedToDelete)="onWantToDelete($event)"
             (wantedToRedraft)="onWantToRedraft($event)"
+            (wantedToApprove)="onWantToApprove($event)"
             (resetReply)="onResetReply()"
             (timestampClicked)="handleTimestampClicked($event)"
             [redraftValue]="redraftValue"

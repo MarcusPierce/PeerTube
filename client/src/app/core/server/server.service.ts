@@ -2,9 +2,18 @@ import { Observable, of, Subject } from 'rxjs'
 import { first, map, share, shareReplay, switchMap, tap } from 'rxjs/operators'
 import { HttpClient } from '@angular/common/http'
 import { Inject, Injectable, LOCALE_ID } from '@angular/core'
-import { getDevLocale, isOnDevLocale, sortBy } from '@app/helpers'
-import { getCompleteLocale, isDefaultLocale, peertubeTranslate } from '@shared/core-utils/i18n'
-import { HTMLServerConfig, ServerConfig, ServerStats, VideoConstant } from '@shared/models'
+import { getDevLocale, isOnDevLocale } from '@app/helpers'
+import { getCompleteLocale, isDefaultLocale, peertubeTranslate } from '@peertube/peertube-core-utils'
+import {
+  HTMLServerConfig,
+  ServerConfig,
+  ServerStats,
+  VideoCommentPolicy,
+  VideoConstant,
+  VideoPlaylistPrivacyType,
+  VideoPrivacyType
+} from '@peertube/peertube-models'
+import { logger } from '@root-helpers/logger'
 import { environment } from '../../../environments/environment'
 
 @Injectable()
@@ -20,8 +29,8 @@ export class ServerService {
   private localeObservable: Observable<any>
   private videoLicensesObservable: Observable<VideoConstant<number>[]>
   private videoCategoriesObservable: Observable<VideoConstant<number>[]>
-  private videoPrivaciesObservable: Observable<VideoConstant<number>[]>
-  private videoPlaylistPrivaciesObservable: Observable<VideoConstant<number>[]>
+  private videoPrivaciesObservable: Observable<VideoConstant<VideoPrivacyType>[]>
+  private videoPlaylistPrivaciesObservable: Observable<VideoConstant<VideoPlaylistPrivacyType>[]>
   private videoLanguagesObservable: Observable<VideoConstant<string>[]>
   private configObservable: Observable<ServerConfig>
 
@@ -39,11 +48,11 @@ export class ServerService {
 
   loadHTMLConfig () {
     try {
-      return this.loadHTMLConfigLocally()
+      this.loadHTMLConfigLocally()
     } catch (err) {
       // Expected in dev mode since we can't inject the config in the HTML
       if (environment.production !== false) {
-        console.error('Cannot load config locally. Fallback to API.')
+        logger.error('Cannot load config locally. Fallback to API.')
       }
 
       return this.getConfig()
@@ -96,6 +105,24 @@ export class ServerService {
     return this.htmlConfig
   }
 
+  getCommentPolicies () {
+    return of([
+      {
+        id: VideoCommentPolicy.DISABLED,
+        label: $localize`Comments are disabled`
+      },
+      {
+        id: VideoCommentPolicy.ENABLED,
+        label: $localize`Comments are enabled`,
+        description: $localize`Comments may require approval depending on your auto tag policies`
+      },
+      {
+        id: VideoCommentPolicy.REQUIRES_APPROVAL,
+        label: $localize`Any new comment requires approval`
+      }
+    ])
+  }
+
   getVideoCategories () {
     if (!this.videoCategoriesObservable) {
       this.videoCategoriesObservable = this.loadAttributeEnum<number>(ServerService.BASE_VIDEO_URL, 'categories', true)
@@ -122,7 +149,7 @@ export class ServerService {
 
   getVideoPrivacies () {
     if (!this.videoPrivaciesObservable) {
-      this.videoPrivaciesObservable = this.loadAttributeEnum<number>(ServerService.BASE_VIDEO_URL, 'privacies')
+      this.videoPrivaciesObservable = this.loadAttributeEnum<VideoPrivacyType>(ServerService.BASE_VIDEO_URL, 'privacies')
     }
 
     return this.videoPrivaciesObservable.pipe(first())
@@ -130,13 +157,16 @@ export class ServerService {
 
   getVideoPlaylistPrivacies () {
     if (!this.videoPlaylistPrivaciesObservable) {
-      this.videoPlaylistPrivaciesObservable = this.loadAttributeEnum<number>(ServerService.BASE_VIDEO_PLAYLIST_URL, 'privacies')
+      this.videoPlaylistPrivaciesObservable = this.loadAttributeEnum<VideoPlaylistPrivacyType>(
+        ServerService.BASE_VIDEO_PLAYLIST_URL,
+        'privacies'
+      )
     }
 
     return this.videoPlaylistPrivaciesObservable.pipe(first())
   }
 
-  getServerLocale () {
+  getServerLocale (): Observable<{ [ id: string ]: string }> {
     if (!this.localeObservable) {
       const completeLocale = isOnDevLocale() ? getDevLocale() : getCompleteLocale(this.localeId)
 
@@ -183,7 +213,9 @@ export class ServerService {
                                                                       }
                                                                     })
 
-                   if (sort === true) sortBy(hashToPopulate, 'label')
+                   if (sort === true) {
+                     hashToPopulate.sort((a, b) => a.label.localeCompare(b.label))
+                   }
 
                    return hashToPopulate
                  }),
@@ -192,7 +224,7 @@ export class ServerService {
   }
 
   private loadHTMLConfigLocally () {
-    const configString = window['PeerTubeServerConfig']
+    const configString = (window as any)['PeerTubeServerConfig']
     if (!configString) {
       throw new Error('Could not find PeerTubeServerConfig in HTML')
     }

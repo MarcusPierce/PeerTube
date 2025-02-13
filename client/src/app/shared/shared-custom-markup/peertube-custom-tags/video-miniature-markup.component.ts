@@ -1,10 +1,12 @@
 import { finalize } from 'rxjs/operators'
-import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core'
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output } from '@angular/core'
 import { AuthService, Notifier } from '@app/core'
-import { FindInBulkService } from '@app/shared/shared-search'
-import { Video } from '../../shared-main'
-import { MiniatureDisplayOptions } from '../../shared-video-miniature'
+import { objectKeysTyped } from '@peertube/peertube-core-utils'
 import { CustomMarkupComponent } from './shared'
+import { MiniatureDisplayOptions, VideoMiniatureComponent } from '../../shared-video-miniature/video-miniature.component'
+import { NgIf } from '@angular/common'
+import { Video } from '@app/shared/shared-main/video/video.model'
+import { FindInBulkService } from '@app/shared/shared-search/find-in-bulk.service'
 
 /*
  * Markup component that creates a video miniature only
@@ -13,7 +15,9 @@ import { CustomMarkupComponent } from './shared'
 @Component({
   selector: 'my-video-miniature-markup',
   templateUrl: 'video-miniature-markup.component.html',
-  styleUrls: [ 'video-miniature-markup.component.scss' ]
+  styleUrls: [ 'video-miniature-markup.component.scss' ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ NgIf, VideoMiniatureComponent ]
 })
 export class VideoMiniatureMarkupComponent implements CustomMarkupComponent, OnInit {
   @Input() uuid: string
@@ -26,7 +30,7 @@ export class VideoMiniatureMarkupComponent implements CustomMarkupComponent, OnI
     date: true,
     views: true,
     by: true,
-    avatar: false,
+    avatar: true,
     privacyLabel: false,
     privacyText: false,
     state: false,
@@ -36,7 +40,8 @@ export class VideoMiniatureMarkupComponent implements CustomMarkupComponent, OnI
   constructor (
     private auth: AuthService,
     private findInBulk: FindInBulkService,
-    private notifier: Notifier
+    private notifier: Notifier,
+    private cd: ChangeDetectorRef
   ) { }
 
   getUser () {
@@ -45,7 +50,7 @@ export class VideoMiniatureMarkupComponent implements CustomMarkupComponent, OnI
 
   ngOnInit () {
     if (this.onlyDisplayTitle) {
-      for (const key of Object.keys(this.displayOptions)) {
+      for (const key of objectKeysTyped(this.displayOptions)) {
         this.displayOptions[key] = false
       }
     }
@@ -55,7 +60,10 @@ export class VideoMiniatureMarkupComponent implements CustomMarkupComponent, OnI
     this.findInBulk.getVideo(this.uuid)
       .pipe(finalize(() => this.loaded.emit(true)))
       .subscribe({
-        next: video => this.video = video,
+        next: video => {
+          this.video = video
+          this.cd.markForCheck()
+        },
 
         error: err => this.notifier.error($localize`Error in video miniature component: ${err.message}`)
       })

@@ -4,11 +4,11 @@ import { HttpClient, HttpParams } from '@angular/common/http'
 import { Injectable } from '@angular/core'
 import { RestExtractor, ServerService } from '@app/core'
 import { immutableAssign } from '@app/helpers'
-import { VideoService } from '@app/shared/shared-main'
-import { peertubeTranslate } from '@shared/core-utils/i18n'
-import { VideosOverview as VideosOverviewServer } from '@shared/models'
+import { objectKeysTyped, peertubeTranslate } from '@peertube/peertube-core-utils'
+import { VideosOverview as VideosOverviewServer } from '@peertube/peertube-models'
 import { environment } from '../../../../environments/environment'
 import { VideosOverview } from './videos-overview.model'
+import { VideoService } from '@app/shared/shared-main/video/video.service'
 
 @Injectable()
 export class OverviewService {
@@ -42,7 +42,7 @@ export class OverviewService {
     }
 
     // Build videos objects
-    for (const key of Object.keys(serverVideosOverview)) {
+    for (const key of objectKeysTyped(serverVideosOverview)) {
       for (const object of serverVideosOverview[key]) {
         observables.push(
           of(object.videos)
@@ -50,7 +50,7 @@ export class OverviewService {
               switchMap(videos => this.videosService.extractVideos({ total: 0, data: videos })),
               map(result => result.data),
               tap(videos => {
-                videosOverviewResult[key].push(immutableAssign(object, { videos }))
+                videosOverviewResult[key].push(immutableAssign(object, { videos }) as any)
               })
             )
         )

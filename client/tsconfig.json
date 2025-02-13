@@ -1,24 +1,26 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "downlevelIteration": true,
     "outDir": "./dist/out-tsc",
     "sourceMap": true,
     "declaration": false,
     "moduleResolution": "node",
-    "module": "esnext",
+    "module": "es2020",
+    "esModuleInterop": true,
     "experimentalDecorators": true,
     "noImplicitAny": true,
     "noImplicitThis": true,
-    "suppressImplicitAnyIndexErrors":true,
     "alwaysStrict": true,
+    "allowJs": true,
     "importHelpers": true,
     "strictBindCallApply": true,
-    "target": "es2015",
+    "target": "ES2022",
+    "isolatedModules": true,
     "typeRoots": [
       "node_modules/@types"
     ],
     "lib": [
+      "ES2021.Intl",
       "es2018",
       "es2017",
       "es2016",
@@ -27,34 +29,37 @@
     ],
     "baseUrl": "./",
     "paths": {
-      "hls.js": [ "node_modules/hls.js/dist/hls.light" ],
-      "video.js": [ "node_modules/video.js/core" ],
-      "@app/*": [ "src/app/*" ],
-      "@shared/models/*": [ "../shared/models/*" ],
-      "@shared/models": [ "../shared/models" ],
-      "@shared/core-utils": [ "../shared/core-utils" ],
-      "@shared/core-utils/*": [ "../shared/core-utils/*" ],
-      "@root-helpers/*": [ "src/root-helpers/*" ],
-      "fs": [ "src/shims/noop.ts" ],
-      "http": [ "src/shims/http.ts" ],
-      "https": [ "src/shims/https.ts" ],
-      "path": [ "src/shims/path.ts" ],
-      "stream": [ "src/shims/stream.ts" ],
-      "crypto": [ "src/shims/noop.ts" ]
+      "video.js": [
+        "node_modules/video.js/core"
+      ],
+      "@app/*": [
+        "src/app/*"
+      ],
+      "@root-helpers/*": [
+        "src/root-helpers/*"
+      ],
+      "fs": [
+        "src/shims/noop.ts"
+      ],
+      "crypto": [
+        "src/shims/noop.ts"
+      ]
     }
   },
+  "references": [
+    { "path": "../packages/core-utils" },
+    { "path": "../packages/models" },
+    { "path": "../packages/typescript-utils" }
+  ],
   "files": [
     "src/polyfills.ts"
   ],
   "include": [
+    "src/polyfills.ts",
     "src/main*.ts",
     "src/**/*.d.ts",
+    "src/app/**/*.ts",
     "src/shims/*.ts"
-  ],
-  "exclude": [
-    "../node_modules",
-    "../server",
-    "node_modules"
   ],
   "angularCompilerOptions": {
     "strictInjectionParameters": true,

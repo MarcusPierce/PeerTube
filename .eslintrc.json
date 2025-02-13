@@ -1,5 +1,6 @@
 {
   "extends": "standard-with-typescript",
+  "root": true,
   "rules": {
     "eol-last": [
       "error",
@@ -38,12 +39,18 @@
         }
       }
     ],
+    "quotes": "off",
+
+    "no-constant-binary-expression": "error",
+
     "@typescript-eslint/indent": [
       "error",
       2,
       {
         "SwitchCase": 1,
-        "MemberExpression": "off"
+        "MemberExpression": "off",
+        // https://github.com/eslint/eslint/issues/15299
+        "ignoredNodes": ["PropertyDefinition"]
       }
     ],
     "@typescript-eslint/consistent-type-assertions": [
@@ -76,7 +83,14 @@
     "@typescript-eslint/dot-notation": "off",
     "@typescript-eslint/method-signature-style": "off",
     "@typescript-eslint/no-base-to-string": "off",
-    "@typescript-eslint/quotes": "off",
+    "@typescript-eslint/quotes": [
+        "error",
+        "single",
+        {
+            "avoidEscape": true,
+            "allowTemplateLiterals": true
+        }
+    ],
     "@typescript-eslint/no-var-requires": "off",
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/promise-function-async": "off",
@@ -94,15 +108,44 @@
     "@typescript-eslint/require-await": "error",
 
     // bugged but useful
-    "@typescript-eslint/restrict-plus-operands": "off"
+    "@typescript-eslint/restrict-plus-operands": "off",
+
+    // Requires strictNullChecks
+    "@typescript-eslint/prefer-nullish-coalescing": "off",
+    "@typescript-eslint/consistent-type-imports": "off",
+    "@typescript-eslint/consistent-indexed-object-style": "off",
+    "@typescript-eslint/no-confusing-void-expression": "off",
+    "@typescript-eslint/consistent-type-exports": "off",
+    "@typescript-eslint/key-spacing": "off",
+
+    "@typescript-eslint/no-unsafe-argument": "off",
+
+    "@typescript-eslint/ban-types": [
+      "error",
+      {
+        "types": {
+          "{}": false,
+          "Function": false
+        },
+        "extendDefaults": true
+      }
+    ]
   },
   "ignorePatterns": [
-    "node_modules/"
+    "node_modules",
+    "packages/tests/fixtures",
+    "apps/**/dist",
+    "packages/**/dist",
+    "server/dist",
+    "packages/types-generator/tests",
+    "*.js",
+    "/client",
+    "/dist"
   ],
   "parserOptions": {
     "project": [
-      "./tsconfig.json",
-      "./server/tools/tsconfig.json"
-    ]
+      "./tsconfig.eslint.json"
+    ],
+    "EXPERIMENTAL_useSourceOfProjectReferenceRedirect": true
   }
 }

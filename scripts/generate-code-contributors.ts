@@ -1,7 +1,4 @@
-import { registerTSPaths } from '../server/helpers/register-ts-paths'
-registerTSPaths()
-
-import { CLICommand } from '@shared/extra-utils'
+import { CLICommand } from '@peertube/peertube-server-commands'
 
 run()
   .then(() => process.exit(0))
@@ -11,12 +8,12 @@ run()
   })
 
 async function run () {
-  const blacklist = getContributorsBlacklist()
+  const excludeList = getContributorsExcludeList()
 
   {
     let contributors = await getGitContributors()
     contributors = contributors.concat(getZanataContributors())
-    contributors = contributors.filter(c => blacklist[c.username] !== true)
+    contributors = contributors.filter(c => !excludeList.has(c.username))
 
     console.log('# Code & Translators contributors\n')
     for (const contributor of contributors) {
@@ -28,9 +25,11 @@ async function run () {
     console.log('\n\n# Design\n')
     console.log(' * [Olivier Massain](https://dribbble.com/omassain)')
     console.log(' * [Marie-Cécile Godwin Paccard](https://mcgodwin.com/)')
+    console.log(' * [La Coopérative des Internets](https://www.lacooperativedesinternets.fr/)')
 
     console.log('\n\n# Icons\n')
     console.log(' * [Feather Icons](https://feathericons.com) (MIT)')
+    console.log(' * [Lucide Icons](https://lucide.dev/) (ISC)')
     console.log(' * `playlist add`, `history`, `subscriptions`, `miscellaneous-services.svg`, `tip` by Material UI (Apache 2.0)')
     console.log(' * `support` by Chocobozzz (CC-BY)')
     console.log(' * `language` by Aaron Jin (CC-BY)')
@@ -189,13 +188,16 @@ function getZanataContributors () {
   ]
 }
 
-function getContributorsBlacklist () {
-  return {
-    'Bigard Florian': true,
-    'chocobozzz': true,
-    'Rigel': true,
+function getContributorsExcludeList () {
+  return new Set([
+    'Bigard Florian',
+    'chocobozzz',
+    'Rigel',
 
     // Requested by the contributor
-    'Marcel Cramm': true
-  }
+    'Marcel Cramm',
+    'Chris Sakura 佐倉くりす on Youtube',
+    'Chris Sakura 佐倉くりす on Youtube - 日本語は第二言語やけ、間違っとったら思いっきり叩いてくださいｗ つたない日本語ばっかりやけど頑張りまーす♪',
+    'chris@famichiki.tube'
+  ])
 }

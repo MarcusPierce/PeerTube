@@ -1,10 +1,12 @@
 import { finalize } from 'rxjs/operators'
-import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core'
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output } from '@angular/core'
 import { Notifier } from '@app/core'
-import { FindInBulkService } from '@app/shared/shared-search'
-import { MiniatureDisplayOptions } from '../../shared-video-miniature'
-import { VideoPlaylist } from '../../shared-video-playlist'
 import { CustomMarkupComponent } from './shared'
+import { VideoPlaylistMiniatureComponent } from '../../shared-video-playlist/video-playlist-miniature.component'
+import { NgIf } from '@angular/common'
+import { FindInBulkService } from '@app/shared/shared-search/find-in-bulk.service'
+import { MiniatureDisplayOptions } from '@app/shared/shared-video-miniature/video-miniature.component'
+import { VideoPlaylist } from '@app/shared/shared-video-playlist/video-playlist.model'
 
 /*
  * Markup component that creates a playlist miniature only
@@ -13,7 +15,9 @@ import { CustomMarkupComponent } from './shared'
 @Component({
   selector: 'my-playlist-miniature-markup',
   templateUrl: 'playlist-miniature-markup.component.html',
-  styleUrls: [ 'playlist-miniature-markup.component.scss' ]
+  styleUrls: [ 'playlist-miniature-markup.component.scss' ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ NgIf, VideoPlaylistMiniatureComponent ]
 })
 export class PlaylistMiniatureMarkupComponent implements CustomMarkupComponent, OnInit {
   @Input() uuid: string
@@ -26,7 +30,7 @@ export class PlaylistMiniatureMarkupComponent implements CustomMarkupComponent, 
     date: true,
     views: true,
     by: true,
-    avatar: false,
+    avatar: true,
     privacyLabel: false,
     privacyText: false,
     state: false,
@@ -35,14 +39,18 @@ export class PlaylistMiniatureMarkupComponent implements CustomMarkupComponent, 
 
   constructor (
     private findInBulkService: FindInBulkService,
-    private notifier: Notifier
+    private notifier: Notifier,
+    private cd: ChangeDetectorRef
   ) { }
 
   ngOnInit () {
     this.findInBulkService.getPlaylist(this.uuid)
       .pipe(finalize(() => this.loaded.emit(true)))
       .subscribe({
-        next: playlist => this.playlist = playlist,
+        next: playlist => {
+          this.playlist = playlist
+          this.cd.markForCheck()
+        },
 
         error: err => this.notifier.error($localize`Error in playlist miniature component: ${err.message}`)
       })

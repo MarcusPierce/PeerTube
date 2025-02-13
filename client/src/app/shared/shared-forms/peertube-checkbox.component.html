@@ -1,14 +1,15 @@
 <div class="root flex-column">
-  <div class="d-flex">
-    <label class="form-group-checkbox">
+  <div class="d-flex align-items-center">
+    <label>
       <input
         type="checkbox"
         [(ngModel)]="checked"
         (ngModelChange)="onModelChange()"
         [id]="inputName"
         [disabled]="disabled"
+        [attr.aria-describedby]="inputName + '-description'"
       />
-      <span role="checkbox" [attr.aria-checked]="checked" [attr.aria-label]="labelText || labelInnerHTML"></span>
+      <span></span>
       <span *ngIf="labelText">{{ labelText }}</span>
       <span
         *ngIf="!labelText && labelInnerHTML"
@@ -30,13 +31,13 @@
       </ng-template>
     </my-help>
 
-    <div *ngIf="recommended" class="recommended" i18n>Recommended</div>
+    <div *ngIf="recommended" class="ms-2 pt-badge badge-secondary" i18n>Recommended</div>
   </div>
 
-  <div class="ml-4 d-flex flex-column">
-    <small class="wrapper mt-2 text-muted">
+  <div class="d-flex flex-column extra-container ms-4">
+    <div class="wrapper form-group-description" [id]="inputName + '-description'">
       <ng-content select="description"></ng-content>
-    </small>
+    </div>
 
     <span class="wrapper mt-3">
       <ng-content select="extra"></ng-content>

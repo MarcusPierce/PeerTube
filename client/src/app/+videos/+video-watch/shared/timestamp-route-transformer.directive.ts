@@ -1,7 +1,8 @@
 import { Directive, EventEmitter, HostListener, Output } from '@angular/core'
 
 @Directive({
-  selector: '[myTimestampRouteTransformer]'
+  selector: '[myTimestampRouteTransformer]',
+  standalone: true
 })
 export class TimestampRouteTransformerDirective {
   @Output() timestampClicked = new EventEmitter<number>()
@@ -11,12 +12,10 @@ export class TimestampRouteTransformerDirective {
     const target = $event.target as HTMLLinkElement
 
     if (target.hasAttribute('href') !== true) return
+    if (!target.classList.contains('video-timestamp')) return
 
     const ngxLink = document.createElement('a')
     ngxLink.href = target.getAttribute('href')
-
-    // we only care about reflective links
-    if (ngxLink.host !== window.location.host) return
 
     const ngxLinkParams = new URLSearchParams(ngxLink.search)
     if (ngxLinkParams.has('start') !== true) return

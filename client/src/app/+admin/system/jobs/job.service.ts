@@ -4,7 +4,7 @@ import { catchError, map } from 'rxjs/operators'
 import { HttpClient, HttpParams } from '@angular/common/http'
 import { Injectable } from '@angular/core'
 import { RestExtractor, RestPagination, RestService } from '@app/core'
-import { Job, ResultList } from '@shared/models'
+import { Job, ResultList } from '@peertube/peertube-models'
 import { environment } from '../../../../environments/environment'
 import { JobStateClient } from '../../../../types/job-state-client.type'
 import { JobTypeClient } from '../../../../types/job-type-client.type'
@@ -19,7 +19,7 @@ export class JobService {
     private restExtractor: RestExtractor
   ) {}
 
-  getJobs (options: {
+  listJobs (options: {
     jobState?: JobStateClient
     jobType: JobTypeClient
     pagination: RestPagination
@@ -34,11 +34,9 @@ export class JobService {
 
     return this.authHttp.get<ResultList<Job>>(JobService.BASE_JOB_URL + `/${jobState || ''}`, { params })
                .pipe(
-                 map(res => {
-                   return this.restExtractor.convertResultListDateToHuman(res, [ 'createdAt', 'processedOn', 'finishedOn' ])
-                 }),
-                 map(res => this.restExtractor.applyToResultListData(res, this.prettyPrintData)),
-                 map(res => this.restExtractor.applyToResultListData(res, this.buildUniqId)),
+                 map(res => this.restExtractor.convertResultListDateToHuman(res, [ 'createdAt', 'processedOn', 'finishedOn' ], 'precise')),
+                 map(res => this.restExtractor.applyToResultListData(res, this.prettyPrintData.bind(this))),
+                 map(res => this.restExtractor.applyToResultListData(res, this.buildUniqId.bind(this))),
                  catchError(err => this.restExtractor.handleError(err))
                )
   }

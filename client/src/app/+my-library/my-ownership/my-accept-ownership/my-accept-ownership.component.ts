@@ -1,17 +1,23 @@
 import { SelectChannelItem } from 'src/types/select-options-item.model'
 import { Component, ElementRef, EventEmitter, OnInit, Output, ViewChild } from '@angular/core'
 import { AuthService, Notifier } from '@app/core'
-import { listUserChannels } from '@app/helpers'
+import { listUserChannelsForSelect } from '@app/helpers'
 import { OWNERSHIP_CHANGE_CHANNEL_VALIDATOR } from '@app/shared/form-validators/video-ownership-change-validators'
-import { FormReactive, FormValidatorService } from '@app/shared/shared-forms'
-import { VideoOwnershipService } from '@app/shared/shared-main'
+import { FormReactive } from '@app/shared/shared-forms/form-reactive'
+import { FormReactiveService } from '@app/shared/shared-forms/form-reactive.service'
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap'
-import { VideoChangeOwnership } from '@shared/models'
+import { VideoChangeOwnership } from '@peertube/peertube-models'
+import { NgIf } from '@angular/common'
+import { SelectChannelComponent } from '../../../shared/shared-forms/select/select-channel.component'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
+import { GlobalIconComponent } from '../../../shared/shared-icons/global-icon.component'
+import { VideoOwnershipService } from '@app/shared/shared-main/video/video-ownership.service'
 
 @Component({
   selector: 'my-accept-ownership',
   templateUrl: './my-accept-ownership.component.html',
-  styleUrls: [ './my-accept-ownership.component.scss' ]
+  styleUrls: [ './my-accept-ownership.component.scss' ],
+  imports: [ GlobalIconComponent, FormsModule, ReactiveFormsModule, SelectChannelComponent, NgIf ]
 })
 export class MyAcceptOwnershipComponent extends FormReactive implements OnInit {
   @Output() accepted = new EventEmitter<void>()
@@ -24,7 +30,7 @@ export class MyAcceptOwnershipComponent extends FormReactive implements OnInit {
   error: string = null
 
   constructor (
-    protected formValidatorService: FormValidatorService,
+    protected formReactiveService: FormReactiveService,
     private videoOwnershipService: VideoOwnershipService,
     private notifier: Notifier,
     private authService: AuthService,
@@ -36,7 +42,7 @@ export class MyAcceptOwnershipComponent extends FormReactive implements OnInit {
   ngOnInit () {
     this.videoChannels = []
 
-    listUserChannels(this.authService)
+    listUserChannelsForSelect(this.authService)
       .subscribe(channels => this.videoChannels = channels)
 
     this.buildForm({
@@ -55,7 +61,9 @@ export class MyAcceptOwnershipComponent extends FormReactive implements OnInit {
       .open(this.modal, { centered: true })
       .result
       .then(() => this.acceptOwnership())
-      .catch(() => this.videoChangeOwnership = undefined)
+      .catch(() => {
+        this.videoChangeOwnership = undefined
+      })
   }
 
   acceptOwnership () {

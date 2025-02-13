@@ -1,22 +1,27 @@
-import { Subject } from 'rxjs'
+import { NgClass, NgIf } from '@angular/common'
 import { Component, Input, OnInit } from '@angular/core'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { Notifier, User, UserService } from '@app/core'
 import { USER_DESCRIPTION_VALIDATOR, USER_DISPLAY_NAME_REQUIRED_VALIDATOR } from '@app/shared/form-validators/user-validators'
-import { FormReactive, FormValidatorService } from '@app/shared/shared-forms'
+import { FormReactive } from '@app/shared/shared-forms/form-reactive'
+import { FormReactiveService } from '@app/shared/shared-forms/form-reactive.service'
+import { MarkdownTextareaComponent } from '@app/shared/shared-forms/markdown-textarea.component'
+import { HelpComponent } from '@app/shared/shared-main/buttons/help.component'
+import { AlertComponent } from '@app/shared/shared-main/common/alert.component'
 
 @Component({
   selector: 'my-account-profile',
   templateUrl: './my-account-profile.component.html',
-  styleUrls: [ './my-account-profile.component.scss' ]
+  styleUrls: [ './my-account-profile.component.scss' ],
+  imports: [ NgIf, FormsModule, ReactiveFormsModule, NgClass, AlertComponent, HelpComponent, MarkdownTextareaComponent ]
 })
 export class MyAccountProfileComponent extends FormReactive implements OnInit {
   @Input() user: User = null
-  @Input() userInformationLoaded: Subject<any>
 
   error: string = null
 
   constructor (
-    protected formValidatorService: FormValidatorService,
+    protected formReactiveService: FormReactiveService,
     private notifier: Notifier,
     private userService: UserService
   ) {
@@ -25,18 +30,16 @@ export class MyAccountProfileComponent extends FormReactive implements OnInit {
 
   ngOnInit () {
     this.buildForm({
-      username: null,
+      'username': null,
       'display-name': USER_DISPLAY_NAME_REQUIRED_VALIDATOR,
-      description: USER_DESCRIPTION_VALIDATOR
+      'description': USER_DESCRIPTION_VALIDATOR
     })
     this.form.controls['username'].disable()
 
-    this.userInformationLoaded.subscribe(() => {
-      this.form.patchValue({
-        username: this.user.username,
-        'display-name': this.user.account.displayName,
-        description: this.user.account.description
-      })
+    this.form.patchValue({
+      'username': this.user.username,
+      'display-name': this.user.account.displayName,
+      'description': this.user.account.description
     })
   }
 
