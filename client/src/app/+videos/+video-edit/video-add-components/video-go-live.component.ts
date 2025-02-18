@@ -1,13 +1,35 @@
-import { forkJoin } from 'rxjs'
+import { NgIf } from '@angular/common'
 import { AfterViewInit, Component, EventEmitter, OnInit, Output } from '@angular/core'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { Router } from '@angular/router'
 import { AuthService, CanComponentDeactivate, HooksService, Notifier, ServerService } from '@app/core'
 import { scrollToTop } from '@app/helpers'
-import { FormValidatorService } from '@app/shared/shared-forms'
-import { Video, VideoCaptionService, VideoEdit, VideoService } from '@app/shared/shared-main'
-import { LiveVideoService } from '@app/shared/shared-video-live'
+import { FormReactiveService } from '@app/shared/shared-forms/form-reactive.service'
+import { AlertComponent } from '@app/shared/shared-main/common/alert.component'
+import { VideoCaptionService } from '@app/shared/shared-main/video-caption/video-caption.service'
+import { VideoChapterService } from '@app/shared/shared-main/video/video-chapter.service'
+import { VideoEdit } from '@app/shared/shared-main/video/video-edit.model'
+import { Video } from '@app/shared/shared-main/video/video.model'
+import { VideoService } from '@app/shared/shared-main/video/video.service'
+import { LiveVideoService } from '@app/shared/shared-video-live/live-video.service'
 import { LoadingBarService } from '@ngx-loading-bar/core'
-import { LiveVideo, LiveVideoCreate, LiveVideoUpdate, PeerTubeProblemDocument, ServerErrorCode } from '@shared/models'
+import {
+  LiveVideo,
+  LiveVideoCreate,
+  LiveVideoLatencyMode,
+  LiveVideoUpdate,
+  PeerTubeProblemDocument,
+  ServerErrorCode,
+  VideoPrivacy
+} from '@peertube/peertube-models'
+import { logger } from '@root-helpers/logger'
+import { forkJoin } from 'rxjs'
+import { SelectChannelComponent } from '../../../shared/shared-forms/select/select-channel.component'
+import { SelectOptionsComponent } from '../../../shared/shared-forms/select/select-options.component'
+import { GlobalIconComponent } from '../../../shared/shared-icons/global-icon.component'
+import { ButtonComponent } from '../../../shared/shared-main/buttons/button.component'
+import { TimeDurationFormatterPipe } from '../../../shared/shared-main/date/time-duration-formatter.pipe'
+import { VideoEditComponent } from '../shared/video-edit.component'
 import { VideoSend } from './video-send'
 
 @Component({
@@ -17,6 +39,18 @@ import { VideoSend } from './video-send'
     '../shared/video-edit.component.scss',
     './video-go-live.component.scss',
     './video-send.scss'
+  ],
+  imports: [
+    NgIf,
+    GlobalIconComponent,
+    SelectChannelComponent,
+    FormsModule,
+    SelectOptionsComponent,
+    ReactiveFormsModule,
+    VideoEditComponent,
+    ButtonComponent,
+    TimeDurationFormatterPipe,
+    AlertComponent
   ]
 })
 export class VideoGoLiveComponent extends VideoSend implements OnInit, AfterViewInit, CanComponentDeactivate {
@@ -26,6 +60,8 @@ export class VideoGoLiveComponent extends VideoSend implements OnInit, AfterView
   firstStepPermanentLive: boolean
 
   isInUpdateForm = false
+  isUpdatingVideo = false
+  isOrHasGoingLive = false
 
   liveVideo: LiveVideo
 
@@ -36,13 +72,14 @@ export class VideoGoLiveComponent extends VideoSend implements OnInit, AfterView
   error: string
 
   constructor (
-    protected formValidatorService: FormValidatorService,
+    protected formReactiveService: FormReactiveService,
     protected loadingBar: LoadingBarService,
     protected notifier: Notifier,
     protected authService: AuthService,
     protected serverService: ServerService,
     protected videoService: VideoService,
     protected videoCaptionService: VideoCaptionService,
+    protected videoChapterService: VideoChapterService,
     private liveVideoService: LiveVideoService,
     private router: Router,
     private hooks: HooksService
@@ -63,22 +100,30 @@ export class VideoGoLiveComponent extends VideoSend implements OnInit, AfterView
   }
 
   goLive () {
+    if (this.isOrHasGoingLive) return
+    this.isOrHasGoingLive = true
+
     const name = 'Live'
 
     const video: LiveVideoCreate = {
       name,
-      privacy: this.highestPrivacy,
+
+      // Password privacy needs a password that will be set in the next step
+      privacy: this.firstStepPrivacyId === VideoPrivacy.PASSWORD_PROTECTED
+        ? VideoPrivacy.PRIVATE
+        : this.highestPrivacy,
+
       nsfw: this.serverConfig.instance.isNSFW,
       waitTranscoding: true,
-      commentsEnabled: true,
-      downloadEnabled: true,
       permanentLive: this.firstStepPermanentLive,
-      saveReplay: this.firstStepPermanentLive === false && this.isReplayAllowed(),
+      latencyMode: LiveVideoLatencyMode.DEFAULT,
+      saveReplay: this.isReplayAllowed(),
+      replaySettings: { privacy: VideoPrivacy.PRIVATE },
       channelId: this.firstStepChannelId
     }
 
     // Go live in private mode, but correctly fill the update form with the first user choice
-    const toPatch = Object.assign({}, video, { privacy: this.firstStepPrivacyId })
+    const toPatch = { ...video, privacy: this.firstStepPrivacyId, replayPrivacy: video.replaySettings.privacy }
     this.form.patchValue(toPatch)
 
     this.liveVideoService.goLive(video)
@@ -102,7 +147,7 @@ export class VideoGoLiveComponent extends VideoSend implements OnInit, AfterView
           const error = err.body as PeerTubeProblemDocument
 
           if (error?.code === ServerErrorCode.MAX_INSTANCE_LIVES_LIMIT_REACHED) {
-            message = $localize`Cannot create live because this instance have too many created lives`
+            message = $localize`Cannot create live because this platform have too many created lives`
           } else if (error?.code === ServerErrorCode.MAX_USER_LIVES_LIMIT_REACHED) {
             message = $localize`Cannot create live because you created too many lives`
           }
@@ -112,10 +157,10 @@ export class VideoGoLiveComponent extends VideoSend implements OnInit, AfterView
       })
   }
 
-  updateSecondStep () {
-    if (this.checkForm() === false) {
-      return
-    }
+  async updateSecondStep () {
+    if (!await this.isFormValid()) return
+
+    this.isUpdatingVideo = true
 
     const video = new VideoEdit()
     video.patch(this.form.value)
@@ -123,18 +168,29 @@ export class VideoGoLiveComponent extends VideoSend implements OnInit, AfterView
     video.uuid = this.videoUUID
     video.shortUUID = this.videoShortUUID
 
+    this.chaptersEdit.patch(this.form.value)
+
+    const saveReplay = this.form.value.saveReplay
+    const replaySettings = saveReplay
+      ? { privacy: this.form.value.replayPrivacy }
+      : undefined
+
     const liveVideoUpdate: LiveVideoUpdate = {
-      saveReplay: this.form.value.saveReplay,
+      saveReplay,
+      replaySettings,
+      latencyMode: this.form.value.latencyMode,
       permanentLive: this.form.value.permanentLive
     }
 
     // Update the video
     forkJoin([
-      this.updateVideoAndCaptions(video),
+      this.updateVideoAndCaptionsAndChapters({ video, captions: this.videoCaptions }),
 
       this.liveVideoService.updateLive(this.videoId, liveVideoUpdate)
     ]).subscribe({
       next: () => {
+        this.isUpdatingVideo = false
+
         this.notifier.success($localize`Live published.`)
 
         this.router.navigateByUrl(Video.buildWatchUrl(video))
@@ -143,7 +199,7 @@ export class VideoGoLiveComponent extends VideoSend implements OnInit, AfterView
       error: err => {
         this.error = err.message
         scrollToTop()
-        console.error(err)
+        logger.error(err)
       }
     })
   }
@@ -152,13 +208,9 @@ export class VideoGoLiveComponent extends VideoSend implements OnInit, AfterView
     return this.serverConfig.live.maxDuration / 1000
   }
 
-  isWaitTranscodingEnabled () {
-    return this.form.value['saveReplay'] === true
-  }
-
   getNormalLiveDescription () {
     if (this.isReplayAllowed()) {
-      return $localize`Stream only once and save a replay of your live`
+      return $localize`Stream only once, replay will replace your live`
     }
 
     return $localize`Stream only once`
@@ -166,7 +218,7 @@ export class VideoGoLiveComponent extends VideoSend implements OnInit, AfterView
 
   getPermanentLiveDescription () {
     if (this.isReplayAllowed()) {
-      return $localize`Stream multiple times, replays can't be saved`
+      return $localize`Stream multiple times, replays will be separate videos`
     }
 
     return $localize`Stream multiple times using the same URL`

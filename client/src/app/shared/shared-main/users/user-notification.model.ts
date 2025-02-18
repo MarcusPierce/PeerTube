@@ -1,22 +1,25 @@
 import { AuthUser } from '@app/core'
 import { Account } from '@app/shared/shared-main/account/account.model'
 import { Actor } from '@app/shared/shared-main/account/actor.model'
-import { VideoChannel } from '@app/shared/shared-main/video-channel/video-channel.model'
+import { VideoChannel } from '@app/shared/shared-main/channel/video-channel.model'
 import {
-  AbuseState,
+  AbuseStateType,
   ActorInfo,
   FollowState,
-  PluginType,
+  PluginType_Type,
   UserNotification as UserNotificationServer,
   UserNotificationType,
+  UserNotificationType_Type,
   UserRight,
+  VideoConstant,
   VideoInfo
-} from '@shared/models'
-import { Video } from '../video'
+} from '@peertube/peertube-models'
+import { logger } from '@root-helpers/logger'
+import { Video } from '../video/video.model'
 
 export class UserNotification implements UserNotificationServer {
   id: number
-  type: UserNotificationType
+  type: UserNotificationType_Type
   read: boolean
 
   video?: VideoInfo & {
@@ -34,13 +37,14 @@ export class UserNotification implements UserNotificationServer {
   comment?: {
     id: number
     threadId: number
+    heldForReview: boolean
     account: ActorInfo & { avatarUrl?: string }
     video: VideoInfo
   }
 
   abuse?: {
     id: number
-    state: AbuseState
+    state: AbuseStateType
 
     video?: VideoInfo
 
@@ -74,12 +78,23 @@ export class UserNotification implements UserNotificationServer {
 
   plugin?: {
     name: string
-    type: PluginType
+    type: PluginType_Type
     latestVersion: string
   }
 
   peertube?: {
     latestVersion: string
+  }
+
+  registration?: {
+    id: number
+    username: string
+  }
+
+  videoCaption?: {
+    id: number
+    language: VideoConstant<string>
+    video: VideoInfo
   }
 
   createdAt: string
@@ -89,12 +104,17 @@ export class UserNotification implements UserNotificationServer {
   videoUrl?: string
   commentUrl?: any[]
 
+  commentReviewUrl?: string
+  commentReviewQueryParams?: { [id: string]: string } = {}
+
   abuseUrl?: string
   abuseQueryParams?: { [id: string]: string } = {}
 
   videoAutoBlacklistUrl?: string
 
   accountUrl?: string
+
+  registrationsUrl?: string
 
   videoImportIdentifier?: string
   videoImportUrl?: string
@@ -134,12 +154,16 @@ export class UserNotification implements UserNotificationServer {
 
       this.plugin = hash.plugin
       this.peertube = hash.peertube
+      this.registration = hash.registration
+
+      this.videoCaption = hash.videoCaption
 
       this.createdAt = hash.createdAt
       this.updatedAt = hash.updatedAt
 
       switch (this.type) {
         case UserNotificationType.NEW_VIDEO_FROM_SUBSCRIPTION:
+        case UserNotificationType.NEW_LIVE_FROM_SUBSCRIPTION:
           this.videoUrl = this.buildVideoUrl(this.video)
           break
 
@@ -152,6 +176,9 @@ export class UserNotification implements UserNotificationServer {
           if (!this.comment) break
           this.accountUrl = this.buildAccountUrl(this.comment.account)
           this.commentUrl = this.buildCommentUrl(this.comment)
+
+          this.commentReviewUrl = '/my-account/videos/comments'
+          this.commentReviewQueryParams.search = 'heldForReview:true'
           break
 
         case UserNotificationType.NEW_ABUSE_FOR_MODERATORS:
@@ -207,16 +234,20 @@ export class UserNotification implements UserNotificationServer {
           this.accountUrl = this.buildAccountUrl(this.account)
           break
 
+        case UserNotificationType.NEW_USER_REGISTRATION_REQUEST:
+          this.registrationsUrl = '/admin/moderation/registrations/list'
+          break
+
         case UserNotificationType.NEW_FOLLOW:
           this.accountUrl = this.buildAccountUrl(this.actorFollow.follower)
           break
 
         case UserNotificationType.NEW_INSTANCE_FOLLOWER:
-          this.instanceFollowUrl = '/admin/follows/followers-list'
+          this.instanceFollowUrl = '/admin/settings/follows/followers-list'
           break
 
         case UserNotificationType.AUTO_INSTANCE_FOLLOWING:
-          this.instanceFollowUrl = '/admin/follows/following-list'
+          this.instanceFollowUrl = '/admin/settings/follows/following-list'
           break
 
         case UserNotificationType.NEW_PEERTUBE_VERSION:
@@ -224,13 +255,21 @@ export class UserNotification implements UserNotificationServer {
           break
 
         case UserNotificationType.NEW_PLUGIN_VERSION:
-          this.pluginUrl = `/admin/plugins/list-installed`
+          this.pluginUrl = `/admin/settings/plugins/list-installed`
           this.pluginQueryParams.pluginType = this.plugin.type + ''
+          break
+
+        case UserNotificationType.MY_VIDEO_TRANSCRIPTION_GENERATED:
+          this.videoUrl = this.buildVideoUrl(this.videoCaption.video)
+          break
+
+        case UserNotificationType.MY_VIDEO_STUDIO_EDITION_FINISHED:
+          this.videoUrl = this.buildVideoUrl(this.video)
           break
       }
     } catch (err) {
       this.type = null
-      console.error(err)
+      logger.error(err)
     }
   }
 
@@ -246,19 +285,25 @@ export class UserNotification implements UserNotificationServer {
     return '/my-library/video-imports'
   }
 
-  private buildVideoImportIdentifier (videoImport: { targetUrl?: string, magnetUri?: string, torrentName?: string }) {
-    return videoImport.targetUrl || videoImport.magnetUri || videoImport.torrentName
+  private buildVideoImportIdentifier (videoImport: UserNotification['videoImport']) {
+    return videoImport.video?.name || videoImport.targetUrl || videoImport.magnetUri || videoImport.torrentName
   }
 
   private buildCommentUrl (comment: { video: { uuid: string }, threadId: number }) {
     return [ this.buildVideoUrl(comment.video), { threadId: comment.threadId } ]
   }
 
-  private setAccountAvatarUrl (actor: { avatarUrl?: string, avatar?: { url?: string, path: string } }) {
-    actor.avatarUrl = Account.GET_ACTOR_AVATAR_URL(actor) || Account.GET_DEFAULT_AVATAR_URL()
+  private setAccountAvatarUrl (actor: {
+    avatarUrl?: string
+    avatars: { width: number, fileUrl?: string, url?: string, path: string }[]
+  }) {
+    actor.avatarUrl = VideoChannel.GET_ACTOR_AVATAR_URL(actor, 48) || Account.GET_DEFAULT_AVATAR_URL(48)
   }
 
-  private setVideoChannelAvatarUrl (actor: { avatarUrl?: string, avatar?: { url?: string, path: string } }) {
-    actor.avatarUrl = VideoChannel.GET_ACTOR_AVATAR_URL(actor) || VideoChannel.GET_DEFAULT_AVATAR_URL()
+  private setVideoChannelAvatarUrl (actor: {
+    avatarUrl?: string
+    avatars: { width: number, fileUrl?: string, url?: string, path: string }[]
+  }) {
+    actor.avatarUrl = VideoChannel.GET_ACTOR_AVATAR_URL(actor, 48) || VideoChannel.GET_DEFAULT_AVATAR_URL(48)
   }
 }

@@ -1,11 +1,11 @@
 import { Routes } from '@angular/router'
 import { VideoRedundanciesListComponent } from '@app/+admin/follows/video-redundancies-list'
 import { UserRightGuard } from '@app/core'
-import { UserRight } from '@shared/models'
+import { UserRight } from '@peertube/peertube-models'
 import { FollowersListComponent } from './followers-list'
 import { FollowingListComponent } from './following-list/following-list.component'
 
-export const FollowsRoutes: Routes = [
+export const followsRoutes: Routes = [
   {
     path: 'follows',
     canActivate: [ UserRightGuard ],
@@ -42,7 +42,12 @@ export const FollowsRoutes: Routes = [
       },
       {
         path: 'video-redundancies-list',
-        component: VideoRedundanciesListComponent
+        component: VideoRedundanciesListComponent,
+        data: {
+          meta: {
+            title: $localize`Redundancy`
+          }
+        }
       }
     ]
   }

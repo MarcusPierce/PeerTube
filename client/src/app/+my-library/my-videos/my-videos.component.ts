@@ -1,26 +1,64 @@
+import { NgIf } from '@angular/common'
+import { Component, OnInit, ViewChild } from '@angular/core'
+import { FormsModule } from '@angular/forms'
+import { ActivatedRoute, Router, RouterLink } from '@angular/router'
+import {
+  AuthService,
+  ComponentPagination,
+  ConfirmService,
+  Notifier,
+  ScreenService,
+  ServerService,
+  updatePaginationOnDelete,
+  User
+} from '@app/core'
+import { DisableForReuseHook } from '@app/core/routing/disable-for-reuse-hook'
+import { formatICU, immutableAssign } from '@app/helpers'
+import { DropdownAction } from '@app/shared/shared-main/buttons/action-dropdown.component'
+import { DeleteButtonComponent } from '@app/shared/shared-main/buttons/delete-button.component'
+import { Video } from '@app/shared/shared-main/video/video.model'
+import { VideoService } from '@app/shared/shared-main/video/video.service'
+import { LiveStreamInformationComponent } from '@app/shared/shared-video-live/live-stream-information.component'
+import { MiniatureDisplayOptions } from '@app/shared/shared-video-miniature/video-miniature.component'
+import { SelectionType, VideosSelectionComponent } from '@app/shared/shared-video-miniature/videos-selection.component'
+import { VideoPlaylistService } from '@app/shared/shared-video-playlist/video-playlist.service'
+import { VideoChannel, VideoExistInPlaylist, VideosExistInPlaylists, VideoSortField } from '@peertube/peertube-models'
+import { uniqBy } from 'lodash-es'
 import { concat, Observable } from 'rxjs'
 import { tap, toArray } from 'rxjs/operators'
-import { Component, OnInit, ViewChild } from '@angular/core'
-import { ActivatedRoute, Router } from '@angular/router'
-import { AuthService, ComponentPagination, ConfirmService, Notifier, ScreenService, ServerService, User } from '@app/core'
-import { DisableForReuseHook } from '@app/core/routing/disable-for-reuse-hook'
-import { immutableAssign } from '@app/helpers'
-import { AdvancedInputFilter } from '@app/shared/shared-forms'
-import { DropdownAction, Video, VideoService } from '@app/shared/shared-main'
-import { LiveStreamInformationComponent } from '@app/shared/shared-video-live'
-import { MiniatureDisplayOptions, SelectionType, VideosSelectionComponent } from '@app/shared/shared-video-miniature'
-import { VideoChannel, VideoSortField } from '@shared/models'
+import { AdvancedInputFilter, AdvancedInputFilterComponent } from '../../shared/shared-forms/advanced-input-filter.component'
+import { GlobalIconComponent } from '../../shared/shared-icons/global-icon.component'
+import { EditButtonComponent } from '../../shared/shared-main/buttons/edit-button.component'
+import { PeerTubeTemplateDirective } from '../../shared/shared-main/common/peertube-template.directive'
+import {
+  VideoActionsDisplayType,
+  VideoActionsDropdownComponent
+} from '../../shared/shared-video-miniature/video-actions-dropdown.component'
 import { VideoChangeOwnershipComponent } from './modals/video-change-ownership.component'
 
 @Component({
   templateUrl: './my-videos.component.html',
-  styleUrls: [ './my-videos.component.scss' ]
+  styleUrls: [ './my-videos.component.scss' ],
+  imports: [
+    GlobalIconComponent,
+    DeleteButtonComponent,
+    NgIf,
+    RouterLink,
+    AdvancedInputFilterComponent,
+    FormsModule,
+    VideosSelectionComponent,
+    PeerTubeTemplateDirective,
+    EditButtonComponent,
+    VideoActionsDropdownComponent,
+    VideoChangeOwnershipComponent
+  ]
 })
 export class MyVideosComponent implements OnInit, DisableForReuseHook {
   @ViewChild('videosSelection', { static: true }) videosSelection: VideosSelectionComponent
   @ViewChild('videoChangeOwnershipModal', { static: true }) videoChangeOwnershipModal: VideoChangeOwnershipComponent
   @ViewChild('liveStreamInformationModal', { static: true }) liveStreamInformationModal: LiveStreamInformationComponent
 
+  videosContainedInPlaylists: VideosExistInPlaylists = {}
   titlePage: string
   selection: SelectionType = {}
   pagination: ComponentPagination = {
@@ -35,10 +73,27 @@ export class MyVideosComponent implements OnInit, DisableForReuseHook {
     privacyLabel: false,
     privacyText: true,
     state: true,
-    blacklistInfo: true
+    blacklistInfo: true,
+    forceChannelInBy: true,
+    nsfw: true
+  }
+  videoDropdownDisplayOptions: VideoActionsDisplayType = {
+    playlist: true,
+    download: true,
+    update: false,
+    blacklist: false,
+    delete: true,
+    report: false,
+    duplicate: false,
+    mute: false,
+    liveInfo: true,
+    removeFiles: false,
+    transcoding: false,
+    studio: true,
+    stats: true
   }
 
-  videoActions: DropdownAction<{ video: Video }>[] = []
+  moreVideoActions: DropdownAction<{ video: Video }>[][] = []
 
   videos: Video[] = []
   getVideosObservableFunction = this.getVideosObservable.bind(this)
@@ -47,7 +102,7 @@ export class MyVideosComponent implements OnInit, DisableForReuseHook {
 
   user: User
 
-  inputFilters: AdvancedInputFilter[]
+  inputFilters: AdvancedInputFilter[] = []
 
   disabled = false
 
@@ -62,7 +117,8 @@ export class MyVideosComponent implements OnInit, DisableForReuseHook {
     protected notifier: Notifier,
     protected screenService: ScreenService,
     private confirmService: ConfirmService,
-    private videoService: VideoService
+    private videoService: VideoService,
+    private playlistService: VideoPlaylistService
   ) {
     this.titlePage = $localize`My videos`
   }
@@ -76,34 +132,34 @@ export class MyVideosComponent implements OnInit, DisableForReuseHook {
       this.search = this.route.snapshot.queryParams['search']
     }
 
-    this.authService.userInformationLoaded.subscribe(() => {
-      this.user = this.authService.getUser()
-      this.userChannels = this.user.videoChannels
+    this.user = this.authService.getUser()
+    this.userChannels = this.user.videoChannels
 
-      const channelFilters = this.userChannels.map(c => {
+    const channelFilters = [ ...this.userChannels ]
+      .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      .map(c => {
         return {
           value: 'channel:' + c.name,
-          label: c.name
+          label: c.displayName
         }
       })
 
-      this.inputFilters = [
-        {
-          title: $localize`Advanced filters`,
-          children: [
-            {
-              value: 'isLive:true',
-              label: $localize`Only live videos`
-            }
-          ]
-        },
+    this.inputFilters = [
+      {
+        title: $localize`Advanced filters`,
+        children: [
+          {
+            value: 'isLive:true',
+            label: $localize`Only live videos`
+          }
+        ]
+      },
 
-        {
-          title: $localize`Channel filters`,
-          children: channelFilters
-        }
-      ]
-    })
+      {
+        title: $localize`Channel filters`,
+        children: channelFilters
+      }
+    ]
   }
 
   onSearch (search: string) {
@@ -135,19 +191,32 @@ export class MyVideosComponent implements OnInit, DisableForReuseHook {
       sort: this.sort,
       userChannels: this.userChannels,
       search: this.search
-    })
-      .pipe(
-        tap(res => this.pagination.totalItems = res.total)
-      )
+    }).pipe(
+      tap(res => this.pagination.totalItems = res.total),
+      tap(({ data }) => this.fetchVideosContainedInPlaylists(data))
+    )
+  }
+
+  private fetchVideosContainedInPlaylists (videos: Video[]) {
+    this.playlistService.doVideosExistInPlaylist(videos.map(v => v.id))
+      .subscribe(result => {
+        this.videosContainedInPlaylists = Object.keys(result).reduce((acc, videoId) => ({
+          ...acc,
+          [videoId]: uniqBy(result[+videoId], (p: VideoExistInPlaylist) => p.playlistId)
+        }), this.videosContainedInPlaylists)
+      })
   }
 
   async deleteSelectedVideos () {
-    const toDeleteVideosIds = Object.keys(this.selection)
-                                    .filter(k => this.selection[k] === true)
-                                    .map(k => parseInt(k, 10))
+    const toDeleteVideosIds = Object.entries(this.selection)
+                                    .filter(([ _k, v ]) => v === true)
+                                    .map(([ k, _v ]) => parseInt(k, 10))
 
     const res = await this.confirmService.confirm(
-      $localize`Do you really want to delete ${toDeleteVideosIds.length} videos?`,
+      formatICU(
+        $localize`Do you really want to delete {length, plural, =1 {this video} other {{length} videos}}?`,
+        { length: toDeleteVideosIds.length }
+      ),
       $localize`Delete`
     )
     if (res === false) return
@@ -164,7 +233,13 @@ export class MyVideosComponent implements OnInit, DisableForReuseHook {
       .pipe(toArray())
       .subscribe({
         next: () => {
-          this.notifier.success($localize`${toDeleteVideosIds.length} videos deleted.`)
+          this.notifier.success(
+            formatICU(
+              $localize`{length, plural, =1 {Video has been deleted} other {{length} videos have been deleted}}`,
+              { length: toDeleteVideosIds.length }
+            )
+          )
+
           this.selection = {}
         },
 
@@ -172,54 +247,36 @@ export class MyVideosComponent implements OnInit, DisableForReuseHook {
       })
   }
 
-  async deleteVideo (video: Video) {
-    const res = await this.confirmService.confirm(
-      $localize`Do you really want to delete ${video.name}?`,
-      $localize`Delete`
-    )
-    if (res === false) return
-
-    this.videoService.removeVideo(video.id)
-        .subscribe({
-          next: () => {
-            this.notifier.success($localize`Video ${video.name} deleted.`)
-            this.removeVideoFromArray(video.id)
-          },
-
-          error: err => this.notifier.error(err.message)
-        })
+  onVideoRemoved (video: Video) {
+    this.removeVideoFromArray(video.id)
   }
 
   changeOwnership (video: Video) {
     this.videoChangeOwnershipModal.show(video)
   }
 
-  displayLiveInformation (video: Video) {
-    this.liveStreamInformationModal.show(video)
+  getTotalTitle () {
+    return formatICU(
+      $localize`${this.pagination.totalItems} {total, plural, =1 {video} other {videos}}`,
+      { total: this.pagination.totalItems }
+    )
   }
 
   private removeVideoFromArray (id: number) {
     this.videos = this.videos.filter(v => v.id !== id)
+
+    updatePaginationOnDelete(this.pagination)
   }
 
   private buildActions () {
-    this.videoActions = [
-      {
-        label: $localize`Display live information`,
-        handler: ({ video }) => this.displayLiveInformation(video),
-        isDisplayed: ({ video }) => video.isLive,
-        iconName: 'live'
-      },
-      {
-        label: $localize`Change ownership`,
-        handler: ({ video }) => this.changeOwnership(video),
-        iconName: 'ownership-change'
-      },
-      {
-        label: $localize`Delete`,
-        handler: ({ video }) => this.deleteVideo(video),
-        iconName: 'delete'
-      }
+    this.moreVideoActions = [
+      [
+        {
+          label: $localize`Change ownership`,
+          handler: ({ video }) => this.changeOwnership(video),
+          iconName: 'ownership-change'
+        }
+      ]
     ]
   }
 }

@@ -2,11 +2,12 @@ import { Routes } from '@angular/router'
 import { AbuseListComponent } from '@app/+admin/moderation/abuse-list'
 import { InstanceAccountBlocklistComponent, InstanceServerBlocklistComponent } from '@app/+admin/moderation/instance-blocklist'
 import { VideoBlockListComponent } from '@app/+admin/moderation/video-block-list'
-import { VideoCommentListComponent } from './video-comment-list'
 import { UserRightGuard } from '@app/core'
-import { UserRight } from '@shared/models'
+import { UserRight } from '@peertube/peertube-models'
+import { RegistrationListComponent } from './registration-list'
+import { WatchedWordsListAdminComponent } from './watched-words-list/watched-words-list-admin.component'
 
-export const ModerationRoutes: Routes = [
+export const moderationRoutes: Routes = [
   {
     path: 'moderation',
     children: [
@@ -70,20 +71,27 @@ export const ModerationRoutes: Routes = [
       },
 
       {
+        path: 'registrations/list',
+        component: RegistrationListComponent,
+        canActivate: [ UserRightGuard ],
+        data: {
+          userRight: UserRight.MANAGE_REGISTRATIONS,
+          meta: {
+            title: $localize`User registrations`
+          }
+        }
+      },
+
+      // We moved this component in admin overview pages
+      {
         path: 'video-comments',
         redirectTo: 'video-comments/list',
         pathMatch: 'full'
       },
       {
         path: 'video-comments/list',
-        component: VideoCommentListComponent,
-        canActivate: [ UserRightGuard ],
-        data: {
-          userRight: UserRight.SEE_ALL_COMMENTS,
-          meta: {
-            title: $localize`Video comments`
-          }
-        }
+        redirectTo: '/admin/overview/comments/list',
+        pathMatch: 'full'
       },
 
       {
@@ -104,7 +112,19 @@ export const ModerationRoutes: Routes = [
         data: {
           userRight: UserRight.MANAGE_SERVERS_BLOCKLIST,
           meta: {
-            title: $localize`Muted instances`
+            title: $localize`Muted platforms`
+          }
+        }
+      },
+
+      {
+        path: 'watched-words/list',
+        component: WatchedWordsListAdminComponent,
+        canActivate: [ UserRightGuard ],
+        data: {
+          userRight: UserRight.MANAGE_INSTANCE_WATCHED_WORDS,
+          meta: {
+            title: $localize`Watched words`
           }
         }
       }

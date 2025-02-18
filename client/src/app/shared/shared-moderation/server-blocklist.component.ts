@@ -2,7 +2,7 @@ import { SortMeta } from 'primeng/api'
 import { Directive, OnInit, ViewChild } from '@angular/core'
 import { Notifier, RestPagination, RestTable } from '@app/core'
 import { BatchDomainsModalComponent } from '@app/shared/shared-moderation/batch-domains-modal.component'
-import { ServerBlock } from '@shared/models'
+import { ServerBlock } from '@peertube/peertube-models'
 import { BlocklistComponentType, BlocklistService } from './blocklist.service'
 
 @Directive()
@@ -42,8 +42,8 @@ export class GenericServerBlocklistComponent extends RestTable implements OnInit
       () => {
         this.notifier.success(
           this.mode === BlocklistComponentType.Account
-            ? $localize`Instance ${host} unmuted.`
-            : $localize`Instance ${host} unmuted by your instance.`
+            ? $localize`${host} unmuted.`
+            : $localize`${host} unmuted by your platform.`
         )
 
         this.reloadData()
@@ -65,8 +65,8 @@ export class GenericServerBlocklistComponent extends RestTable implements OnInit
         () => {
           this.notifier.success(
             this.mode === BlocklistComponentType.Account
-              ? $localize`Instance ${domain} muted.`
-              : $localize`Instance ${domain} muted by your instance.`
+              ? $localize`Platform ${domain} muted.`
+              : $localize`Platform ${domain} muted by your platform.`
           )
 
           this.reloadData()
@@ -75,7 +75,7 @@ export class GenericServerBlocklistComponent extends RestTable implements OnInit
     })
   }
 
-  protected reloadData () {
+  protected reloadDataInternal () {
     const operation = this.mode === BlocklistComponentType.Account
       ? this.blocklistService.getUserServerBlocklist({
         pagination: this.pagination,

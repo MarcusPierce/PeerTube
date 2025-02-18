@@ -2,14 +2,26 @@ import { from, Subject, Subscription } from 'rxjs'
 import { concatMap, map, switchMap, tap } from 'rxjs/operators'
 import { Component, OnDestroy, OnInit } from '@angular/core'
 import { ComponentPagination, hasMoreItems, MarkdownService, User, UserService } from '@app/core'
-import { Account, AccountService, Video, VideoChannel, VideoChannelService, VideoService } from '@app/shared/shared-main'
-import { MiniatureDisplayOptions } from '@app/shared/shared-video-miniature'
-import { NSFWPolicyType, VideoSortField } from '@shared/models'
+import { SimpleMemoize } from '@app/helpers'
+import { NSFWPolicyType, VideoSortField } from '@peertube/peertube-models'
+import { MiniatureDisplayOptions, VideoMiniatureComponent } from '../../shared/shared-video-miniature/video-miniature.component'
+import { SubscribeButtonComponent } from '../../shared/shared-user-subscription/subscribe-button.component'
+import { RouterLink } from '@angular/router'
+import { ActorAvatarComponent } from '../../shared/shared-actor-image/actor-avatar.component'
+import { InfiniteScrollerDirective } from '../../shared/shared-main/common/infinite-scroller.directive'
+import { NgIf, NgFor } from '@angular/common'
+import { AccountService } from '@app/shared/shared-main/account/account.service'
+import { VideoChannelService } from '@app/shared/shared-main/channel/video-channel.service'
+import { VideoService } from '@app/shared/shared-main/video/video.service'
+import { VideoChannel } from '@app/shared/shared-main/channel/video-channel.model'
+import { Account } from '@app/shared/shared-main/account/account.model'
+import { Video } from '@app/shared/shared-main/video/video.model'
 
 @Component({
   selector: 'my-account-video-channels',
   templateUrl: './account-video-channels.component.html',
-  styleUrls: [ './account-video-channels.component.scss' ]
+  styleUrls: [ './account-video-channels.component.scss' ],
+  imports: [ NgIf, InfiniteScrollerDirective, NgFor, ActorAvatarComponent, RouterLink, SubscribeButtonComponent, VideoMiniatureComponent ]
 })
 export class AccountVideoChannelsComponent implements OnInit, OnDestroy {
   account: Account
@@ -97,7 +109,7 @@ export class AccountVideoChannelsComponent implements OnInit, OnDestroy {
             videoChannel,
             videoPagination: this.videosPagination,
             sort: this.videosSort,
-            nsfwPolicy: this.nsfwPolicy
+            nsfw: this.videoService.nsfwPolicyToParam(this.nsfwPolicy)
           }
 
           return this.videoService.getVideoChannelVideos(options)
@@ -105,7 +117,11 @@ export class AccountVideoChannelsComponent implements OnInit, OnDestroy {
         })
       )
       .subscribe(async ({ videoChannel, videos, total }) => {
-        this.channelsDescriptionHTML[videoChannel.id] = await this.markdown.textMarkdownToHTML(videoChannel.description)
+        this.channelsDescriptionHTML[videoChannel.id] = await this.markdown.textMarkdownToHTML({
+          markdown: videoChannel.description,
+          withEmoji: true,
+          withHtml: true
+        })
 
         this.videoChannels.push(videoChannel)
 
@@ -141,6 +157,7 @@ export class AccountVideoChannelsComponent implements OnInit, OnDestroy {
     this.loadMoreChannels()
   }
 
+  @SimpleMemoize()
   getVideoChannelLink (videoChannel: VideoChannel) {
     return [ '/c', videoChannel.nameWithHost ]
   }

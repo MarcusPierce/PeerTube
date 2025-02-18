@@ -1,13 +1,14 @@
-import * as MarkdownIt from 'markdown-it'
 import { Injectable } from '@angular/core'
-import { buildVideoLink, decorateVideoLink } from '@shared/core-utils'
 import {
+  buildVideoLink,
   COMPLETE_RULES,
+  decorateVideoLink,
   ENHANCED_RULES,
   ENHANCED_WITH_HTML_RULES,
   TEXT_RULES,
   TEXT_WITH_HTML_RULES
-} from '@shared/core-utils/renderer/markdown'
+} from '@peertube/peertube-core-utils'
+import MarkdownIt from 'markdown-it'
 import { HtmlRendererService } from './html-renderer.service'
 
 type MarkdownParsers = {
@@ -62,34 +63,55 @@ export class MarkdownService {
 
   constructor (private htmlRenderer: HtmlRendererService) {}
 
-  textMarkdownToHTML (markdown: string, withHtml = false, withEmoji = false) {
+  textMarkdownToHTML (options: {
+    markdown: string
+    withHtml?: boolean // default false
+    withEmoji?: boolean // default false
+  }) {
+    const { markdown, withHtml = false, withEmoji = false } = options
+
     if (withHtml) return this.render({ name: 'textWithHTMLMarkdownIt', markdown, withEmoji })
 
     return this.render({ name: 'textMarkdownIt', markdown, withEmoji })
   }
 
-  enhancedMarkdownToHTML (markdown: string, withHtml = false, withEmoji = false) {
+  enhancedMarkdownToHTML (options: {
+    markdown: string
+    withHtml?: boolean // default false
+    withEmoji?: boolean // default false
+  }) {
+    const { markdown, withHtml = false, withEmoji = false } = options
+
     if (withHtml) return this.render({ name: 'enhancedWithHTMLMarkdownIt', markdown, withEmoji })
 
     return this.render({ name: 'enhancedMarkdownIt', markdown, withEmoji })
   }
 
-  unsafeMarkdownToHTML (markdown: string, _trustedInput: true) {
-    return this.render({ name: 'unsafeMarkdownIt', markdown, withEmoji: true })
+  markdownToUnsafeHTML (options: { markdown: string }) {
+    return this.render({ name: 'unsafeMarkdownIt', markdown: options.markdown, withEmoji: true })
   }
 
-  customPageMarkdownToHTML (markdown: string, additionalAllowedTags: string[]) {
+  customPageMarkdownToHTML (options: {
+    markdown: string
+    additionalAllowedTags: string[]
+  }) {
+    const { markdown, additionalAllowedTags } = options
+
     return this.render({ name: 'customPageMarkdownIt', markdown, withEmoji: true, additionalAllowedTags })
   }
 
+  // ---------------------------------------------------------------------------
+
   processVideoTimestamps (videoShortUUID: string, html: string) {
-    return html.replace(/((\d{1,2}):)?(\d{1,2}):(\d{1,2})/g, function (str, _, h, m, s) {
+    return html.replace(/\b((\d{1,2}):)?(\d{1,2}):(\d{1,2})\b/g, function (str, _, h, m, s) {
       const t = (3600 * +(h || 0)) + (60 * +(m || 0)) + (+(s || 0))
 
       const url = decorateVideoLink({
         url: buildVideoLink({ shortUUID: videoShortUUID }),
         startTime: t
       })
+
+      // Sync class name with timestamp-route-transformer directive
       return `<a class="video-timestamp" href="${url}">${str}</a>`
     })
   }
@@ -109,24 +131,28 @@ export class MarkdownService {
 
       if (withEmoji) {
         if (!this.emojiModule) {
-          this.emojiModule = (await import('markdown-it-emoji/light')).default
+          this.emojiModule = (await import('markdown-it-emoji/lib/light.mjs')).default
         }
 
-        this.markdownParsers[name].use(this.emojiModule)
+        this.markdownParsers[name].use(this.emojiModule as MarkdownIt.PluginSimple)
       }
     }
 
-    let html = this.markdownParsers[name].render(markdown)
-    html = this.avoidTruncatedTags(html)
+    const html = this.markdownParsers[name].render(markdown)
 
-    if (config.escape) return this.htmlRenderer.toSafeHtml(html, additionalAllowedTags)
+    if (config.escape) {
+      if (name === 'customPageMarkdownIt') {
+        return this.htmlRenderer.toCustomPageSafeHtml(html, additionalAllowedTags)
+      }
+
+      return this.htmlRenderer.toSimpleSafeHtml(html)
+    }
 
     return html
   }
 
   private async createMarkdownIt (config: MarkdownConfig) {
-    // FIXME: import('...') returns a struct module, containing a "default" field
-    const MarkdownItClass: typeof import ('markdown-it') = (await import('markdown-it') as any).default
+    const MarkdownItClass = (await import('markdown-it')).default
 
     const markdownIt = new MarkdownItClass('zero', { linkify: true, breaks: config.breaks, html: config.html })
 
@@ -159,12 +185,5 @@ export class MarkdownService {
       // pass token to default renderer.*
       return defaultRender(tokens, index, options, env, self)
     }
-  }
-
-  private avoidTruncatedTags (html: string) {
-    return html.replace(/\*\*?([^*]+)$/, '$1')
-      .replace(/<a[^>]+>([^<]+)<\/a>\s*...((<\/p>)|(<\/li>)|(<\/strong>))?$/mi, '$1...')
-      .replace(/\[[^\]]+\]\(([^)]+)$/m, '$1')
-      .replace(/\s?\[[^\]]+\]?[.]{3}<\/p>$/m, '...</p>')
   }
 }

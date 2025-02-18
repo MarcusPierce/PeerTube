@@ -1,17 +1,50 @@
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from '@angular/core'
-import { NgbAccordion } from '@ng-bootstrap/ng-bootstrap'
-import { InstanceService } from './instance.service'
-import { Notifier } from '@app/core'
-import { About } from '@shared/models/server'
+import { HooksService, Notifier } from '@app/core'
+import {
+  NgbAccordionDirective,
+  NgbAccordionItem,
+  NgbAccordionHeader,
+  NgbAccordionToggle,
+  NgbAccordionButton,
+  NgbCollapse,
+  NgbAccordionCollapse,
+  NgbAccordionBody
+} from '@ng-bootstrap/ng-bootstrap'
+import { About, ClientFilterHookName, PluginClientScope } from '@peertube/peertube-models'
+import { InstanceService } from '../shared-main/instance/instance.service'
+import { InstanceFeaturesTableComponent } from './instance-features-table.component'
+import { GlobalIconComponent } from '../shared-icons/global-icon.component'
+import { NgIf, NgFor } from '@angular/common'
 
 @Component({
   selector: 'my-instance-about-accordion',
   templateUrl: './instance-about-accordion.component.html',
-  styleUrls: [ './instance-about-accordion.component.scss' ]
+  styleUrls: [ './instance-about-accordion.component.scss' ],
+  imports: [
+    NgIf,
+    NgbAccordionDirective,
+    NgbAccordionItem,
+    NgbAccordionHeader,
+    NgbAccordionToggle,
+    NgbAccordionButton,
+    GlobalIconComponent,
+    NgbCollapse,
+    NgbAccordionCollapse,
+    NgbAccordionBody,
+    InstanceFeaturesTableComponent,
+    NgFor
+  ]
 })
 export class InstanceAboutAccordionComponent implements OnInit {
-  @ViewChild('accordion', { static: true }) accordion: NgbAccordion
+  @ViewChild('accordion', { static: true }) accordion: NgbAccordionDirective
+
   @Output() init: EventEmitter<InstanceAboutAccordionComponent> = new EventEmitter<InstanceAboutAccordionComponent>()
+
+  @Input() displayInstanceName = true
+  @Input() displayInstanceShortDescription = true
+
+  @Input() pluginScope: PluginClientScope
+  @Input() pluginHook: ClientFilterHookName
 
   @Input() panels = {
     features: true,
@@ -29,12 +62,15 @@ export class InstanceAboutAccordionComponent implements OnInit {
     administrator: ''
   }
 
+  pluginPanels: { id: string, title: string, html: string }[] = []
+
   constructor (
     private instanceService: InstanceService,
-    private notifier: Notifier
+    private notifier: Notifier,
+    private hookService: HooksService
   ) { }
 
-  ngOnInit (): void {
+  async ngOnInit () {
     this.instanceService.getAbout()
       .subscribe({
         next: async about => {
@@ -47,6 +83,16 @@ export class InstanceAboutAccordionComponent implements OnInit {
 
         error: err => this.notifier.error(err.message)
       })
+
+    this.pluginPanels = await this.hookService.wrapObject([], this.pluginScope, this.pluginHook)
+  }
+
+  expandTerms () {
+    this.accordion.expand('terms')
+  }
+
+  expandCodeOfConduct () {
+    this.accordion.expand('code-of-conduct')
   }
 
   getAdministratorsPanel () {
@@ -54,6 +100,10 @@ export class InstanceAboutAccordionComponent implements OnInit {
     if (!this.panels.administrators) return false
 
     return !!(this.aboutHtml?.administrator || this.about?.instance.maintenanceLifetime || this.about?.instance.businessModel)
+  }
+
+  getTermsTitle () {
+    return $localize`Terms of ${this.about.instance.name}`
   }
 
   get moderationPanel () {

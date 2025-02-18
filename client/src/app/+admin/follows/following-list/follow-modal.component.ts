@@ -1,15 +1,23 @@
+import { NgClass, NgIf } from '@angular/common'
 import { Component, EventEmitter, OnInit, Output, ViewChild } from '@angular/core'
+import { FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { Notifier } from '@app/core'
-import { splitAndGetNotEmpty, UNIQUE_HOSTS_OR_HANDLE_VALIDATOR } from '@app/shared/form-validators/host-validators'
-import { FormReactive, FormValidatorService } from '@app/shared/shared-forms'
-import { InstanceFollowService } from '@app/shared/shared-instance'
+import { formatICU } from '@app/helpers'
+import { UNIQUE_HOSTS_OR_HANDLE_VALIDATOR } from '@app/shared/form-validators/host-validators'
+import { FormReactive } from '@app/shared/shared-forms/form-reactive'
+import { FormReactiveService } from '@app/shared/shared-forms/form-reactive.service'
+import { InstanceFollowService } from '@app/shared/shared-instance/instance-follow.service'
+import { AlertComponent } from '@app/shared/shared-main/common/alert.component'
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap'
 import { NgbModalRef } from '@ng-bootstrap/ng-bootstrap/modal/modal-ref'
+import { splitAndGetNotEmpty } from '@root-helpers/string'
+import { GlobalIconComponent } from '../../../shared/shared-icons/global-icon.component'
 
 @Component({
   selector: 'my-follow-modal',
   templateUrl: './follow-modal.component.html',
-  styleUrls: [ './follow-modal.component.scss' ]
+  styleUrls: [ './follow-modal.component.scss' ],
+  imports: [ GlobalIconComponent, FormsModule, ReactiveFormsModule, NgClass, NgIf, AlertComponent ]
 })
 export class FollowModalComponent extends FormReactive implements OnInit {
   @ViewChild('modal', { static: true }) modal: NgbModal
@@ -21,7 +29,7 @@ export class FollowModalComponent extends FormReactive implements OnInit {
   private openedModal: NgbModalRef
 
   constructor (
-    protected formValidatorService: FormValidatorService,
+    protected formReactiveService: FormReactiveService,
     private modalService: NgbModal,
     private followService: InstanceFollowService,
     private notifier: Notifier
@@ -60,7 +68,13 @@ export class FollowModalComponent extends FormReactive implements OnInit {
     this.followService.follow(hostsOrHandles)
       .subscribe({
         next: () => {
-          this.notifier.success($localize`Follow request(s) sent!`)
+          this.notifier.success(
+            formatICU(
+              $localize`{count, plural, =1 {Follow request sent!} other {Follow requests sent!}}`,
+              { count: hostsOrHandles.length }
+            )
+          )
+
           this.newFollow.emit()
         },
 

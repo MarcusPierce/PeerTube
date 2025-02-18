@@ -1,15 +1,32 @@
-
 import { SelectOptionsItem } from 'src/types/select-options-item.model'
 import { Component, Input, OnChanges, OnInit, SimpleChanges } from '@angular/core'
-import { FormGroup } from '@angular/forms'
-import { HTMLServerConfig } from '@shared/models'
+import { FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms'
+import { HTMLServerConfig } from '@peertube/peertube-models'
 import { ConfigService } from '../shared/config.service'
 import { EditConfigurationService, ResolutionOption } from './edit-configuration.service'
+import { SelectCustomValueComponent } from '../../../shared/shared-forms/select/select-custom-value.component'
+import { RouterLink } from '@angular/router'
+import { SelectOptionsComponent } from '../../../shared/shared-forms/select/select-options.component'
+import { NgClass, NgIf, NgFor } from '@angular/common'
+import { PeerTubeTemplateDirective } from '../../../shared/shared-main/common/peertube-template.directive'
+import { PeertubeCheckboxComponent } from '../../../shared/shared-forms/peertube-checkbox.component'
 
 @Component({
   selector: 'my-edit-live-configuration',
   templateUrl: './edit-live-configuration.component.html',
-  styleUrls: [ './edit-custom-config.component.scss' ]
+  styleUrls: [ './edit-custom-config.component.scss' ],
+  imports: [
+    FormsModule,
+    ReactiveFormsModule,
+    PeertubeCheckboxComponent,
+    PeerTubeTemplateDirective,
+    NgClass,
+    NgIf,
+    SelectOptionsComponent,
+    NgFor,
+    RouterLink,
+    SelectCustomValueComponent
+  ]
 })
 export class EditLiveConfigurationComponent implements OnInit, OnChanges {
   @Input() form: FormGroup
@@ -38,7 +55,7 @@ export class EditLiveConfigurationComponent implements OnInit, OnChanges {
       { id: 1000 * 3600 * 10, label: $localize`10 hours` }
     ]
 
-    this.liveResolutions = this.editConfigurationService.getLiveResolutions()
+    this.liveResolutions = this.editConfigurationService.getTranscodingResolutions()
   }
 
   ngOnChanges (changes: SimpleChanges) {
@@ -51,11 +68,11 @@ export class EditLiveConfigurationComponent implements OnInit, OnChanges {
     const profiles = this.serverConfig.live.transcoding.availableProfiles
 
     return profiles.map(p => {
-      const description = p === 'default'
-        ? $localize`x264, targeting maximum device compatibility`
-        : ''
+      if (p === 'default') {
+        return { id: p, label: $localize`Default`, description: $localize`x264, targeting maximum device compatibility` }
+      }
 
-      return { id: p, label: p, description }
+      return { id: p, label: p }
     })
   }
 
@@ -71,12 +88,20 @@ export class EditLiveConfigurationComponent implements OnInit, OnChanges {
     return this.editConfigurationService.isLiveEnabled(this.form)
   }
 
+  isRemoteRunnerLiveEnabled () {
+    return this.editConfigurationService.isRemoteRunnerLiveEnabled(this.form)
+  }
+
   getDisabledLiveClass () {
     return { 'disabled-checkbox-extra': !this.isLiveEnabled() }
   }
 
   getDisabledLiveTranscodingClass () {
     return { 'disabled-checkbox-extra': !this.isLiveEnabled() || !this.isLiveTranscodingEnabled() }
+  }
+
+  getDisabledLiveLocalTranscodingClass () {
+    return { 'disabled-checkbox-extra': !this.isLiveEnabled() || !this.isLiveTranscodingEnabled() || this.isRemoteRunnerLiveEnabled() }
   }
 
   isLiveTranscodingEnabled () {

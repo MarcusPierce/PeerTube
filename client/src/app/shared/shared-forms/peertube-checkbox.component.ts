@@ -1,6 +1,8 @@
-import { AfterContentInit, ChangeDetectorRef, Component, ContentChildren, forwardRef, Input, QueryList, TemplateRef } from '@angular/core'
-import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms'
-import { PeerTubeTemplateDirective } from '@app/shared/shared-main'
+import { AfterContentInit, Component, ContentChildren, forwardRef, Input, QueryList, TemplateRef } from '@angular/core'
+import { ControlValueAccessor, NG_VALUE_ACCESSOR, FormsModule } from '@angular/forms'
+import { HelpComponent } from '../shared-main/buttons/help.component'
+import { NgIf, NgTemplateOutlet } from '@angular/common'
+import { PeerTubeTemplateDirective } from '../shared-main/common/peertube-template.directive'
 
 @Component({
   selector: 'my-peertube-checkbox',
@@ -12,7 +14,8 @@ import { PeerTubeTemplateDirective } from '@app/shared/shared-main'
       useExisting: forwardRef(() => PeertubeCheckboxComponent),
       multi: true
     }
-  ]
+  ],
+  imports: [ FormsModule, NgIf, NgTemplateOutlet, HelpComponent, PeerTubeTemplateDirective ]
 })
 export class PeertubeCheckboxComponent implements ControlValueAccessor, AfterContentInit {
   @Input() checked = false
@@ -23,15 +26,12 @@ export class PeertubeCheckboxComponent implements ControlValueAccessor, AfterCon
   @Input() disabled = false
   @Input() recommended = false
 
-  @ContentChildren(PeerTubeTemplateDirective) templates: QueryList<PeerTubeTemplateDirective<'label' | 'help'>>
+  describedby: string
 
-  // FIXME: https://github.com/angular/angular/issues/10816#issuecomment-307567836
-  @Input() onPushWorkaround = false
+  @ContentChildren(PeerTubeTemplateDirective) templates: QueryList<PeerTubeTemplateDirective<'label' | 'help'>>
 
   labelTemplate: TemplateRef<any>
   helpTemplate: TemplateRef<any>
-
-  constructor (private cdr: ChangeDetectorRef) { }
 
   ngAfterContentInit () {
     {
@@ -49,10 +49,6 @@ export class PeertubeCheckboxComponent implements ControlValueAccessor, AfterCon
 
   writeValue (checked: boolean) {
     this.checked = checked
-
-    if (this.onPushWorkaround) {
-      this.cdr.markForCheck()
-    }
   }
 
   registerOnChange (fn: (_: any) => void) {

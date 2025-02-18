@@ -1,21 +1,35 @@
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, ViewChild } from '@angular/core'
-import { AuthService, ConfirmService, Notifier, ServerService, UserService } from '@app/core'
-import { Account, DropdownAction } from '@app/shared/shared-main'
-import { BulkRemoveCommentsOfBody, User, UserRight } from '@shared/models'
+import { AuthService, ConfirmService, HooksService, Notifier, PluginService, ServerService } from '@app/core'
+import { BulkRemoveCommentsOfBody, User, UserRight } from '@peertube/peertube-models'
 import { BlocklistService } from './blocklist.service'
 import { BulkService } from './bulk.service'
 import { UserBanModalComponent } from './user-ban-modal.component'
+import { ActionDropdownComponent, DropdownAction } from '../shared-main/buttons/action-dropdown.component'
+import { NgIf } from '@angular/common'
+import { Account } from '../shared-main/account/account.model'
+import { UserAdminService } from '../shared-users/user-admin.service'
+
+export type AccountMutedStatus =
+  Pick<Account, 'id' | 'nameWithHost' | 'host' | 'userId' |
+  'mutedByInstance' | 'mutedByUser' | 'mutedServerByInstance' | 'mutedServerByUser'>
+
+export type UserModerationDisplayType = {
+  myAccount?: boolean
+  instanceAccount?: boolean
+  instanceUser?: boolean
+}
 
 @Component({
   selector: 'my-user-moderation-dropdown',
-  templateUrl: './user-moderation-dropdown.component.html'
+  templateUrl: './user-moderation-dropdown.component.html',
+  imports: [ NgIf, UserBanModalComponent, ActionDropdownComponent ]
 })
 export class UserModerationDropdownComponent implements OnInit, OnChanges {
   @ViewChild('userBanModal') userBanModal: UserBanModalComponent
 
   @Input() user: User
-  @Input() account: Account
-  @Input() prependActions: DropdownAction<{ user: User, account: Account }>[]
+  @Input() account: AccountMutedStatus
+  @Input() prependActions: DropdownAction<{ user: User, account: AccountMutedStatus }>[]
 
   @Input() buttonSize: 'normal' | 'small' = 'normal'
   @Input() buttonStyled = true
@@ -23,10 +37,16 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
   @Input() label: string
   @Input() container: 'body' | undefined = undefined
 
+  @Input() displayOptions: UserModerationDisplayType = {
+    myAccount: true,
+    instanceAccount: true,
+    instanceUser: true
+  }
+
   @Output() userChanged = new EventEmitter()
   @Output() userDeleted = new EventEmitter()
 
-  userActions: DropdownAction<{ user: User, account: Account }>[][] = []
+  userActions: DropdownAction<{ user: User, account: AccountMutedStatus }>[][] = []
 
   requiresEmailVerification = false
 
@@ -35,9 +55,11 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
     private notifier: Notifier,
     private confirmService: ConfirmService,
     private serverService: ServerService,
-    private userService: UserService,
+    private userAdminService: UserAdminService,
     private blocklistService: BlocklistService,
-    private bulkService: BulkService
+    private bulkService: BulkService,
+    private hooks: HooksService,
+    private pluginService: PluginService
   ) { }
 
   ngOnInit () {
@@ -66,7 +88,7 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
     const res = await this.confirmService.confirm($localize`Do you really want to unban ${user.username}?`, $localize`Unban`)
     if (res === false) return
 
-    this.userService.unbanUsers(user)
+    this.userAdminService.unbanUsers(user)
         .subscribe({
           next: () => {
             this.notifier.success($localize`User ${user.username} unbanned.`)
@@ -83,11 +105,12 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
       return
     }
 
-    const message = $localize`If you remove user ${user.username}, you won't be able to create another with the same username!`
+    // eslint-disable-next-line max-len
+    const message = $localize`If you remove this user, you won't be able to create another user or channel with <strong>${user.username}</strong> username!`
     const res = await this.confirmService.confirm(message, $localize`Delete ${user.username}`)
     if (res === false) return
 
-    this.userService.removeUser(user)
+    this.userAdminService.removeUsers(user)
       .subscribe({
         next: () => {
           this.notifier.success($localize`User ${user.username} deleted.`)
@@ -99,7 +122,7 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
   }
 
   setEmailAsVerified (user: User) {
-    this.userService.updateUser(user.id, { emailVerified: true })
+    this.userAdminService.updateUser(user.id, { emailVerified: true })
       .subscribe({
         next: () => {
           this.notifier.success($localize`User ${user.username} email set as verified`)
@@ -110,7 +133,7 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
       })
   }
 
-  blockAccountByUser (account: Account) {
+  blockAccountByUser (account: AccountMutedStatus) {
     this.blocklistService.blockAccountByUser(account)
         .subscribe({
           next: () => {
@@ -124,7 +147,7 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
         })
   }
 
-  unblockAccountByUser (account: Account) {
+  unblockAccountByUser (account: AccountMutedStatus) {
     this.blocklistService.unblockAccountByUser(account)
         .subscribe({
           next: () => {
@@ -142,7 +165,7 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
     this.blocklistService.blockServerByUser(host)
         .subscribe({
           next: () => {
-            this.notifier.success($localize`Instance ${host} muted.`)
+            this.notifier.success($localize`${host} muted.`)
 
             this.account.mutedServerByUser = true
             this.userChanged.emit()
@@ -156,7 +179,7 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
     this.blocklistService.unblockServerByUser(host)
         .subscribe({
           next: () => {
-            this.notifier.success($localize`Instance ${host} unmuted.`)
+            this.notifier.success($localize`${host} unmuted.`)
 
             this.account.mutedServerByUser = false
             this.userChanged.emit()
@@ -166,11 +189,11 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
         })
   }
 
-  blockAccountByInstance (account: Account) {
+  blockAccountByInstance (account: AccountMutedStatus) {
     this.blocklistService.blockAccountByInstance(account)
         .subscribe({
           next: () => {
-            this.notifier.success($localize`Account ${account.nameWithHost} muted by the instance.`)
+            this.notifier.success($localize`Account ${account.nameWithHost} muted by your platform.`)
 
             this.account.mutedByInstance = true
             this.userChanged.emit()
@@ -180,11 +203,11 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
         })
   }
 
-  unblockAccountByInstance (account: Account) {
+  unblockAccountByInstance (account: AccountMutedStatus) {
     this.blocklistService.unblockAccountByInstance(account)
         .subscribe({
           next: () => {
-            this.notifier.success($localize`Account ${account.nameWithHost} unmuted by the instance.`)
+            this.notifier.success($localize`Account ${account.nameWithHost} unmuted by your platform.`)
 
             this.account.mutedByInstance = false
             this.userChanged.emit()
@@ -238,37 +261,37 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
   }
 
   getRouterUserEditLink (user: User) {
-    return [ '/admin', 'users', 'update', user.id ]
+    return [ '/admin', 'overview', 'users', 'update', user.id ]
   }
 
   private isMyUser (user: User) {
     return user && this.authService.getUser().id === user.id
   }
 
-  private isMyAccount (account: Account) {
+  private isMyAccount (account: AccountMutedStatus) {
     return account && this.authService.getUser().account.id === account.id
   }
 
-  private buildActions () {
-    this.userActions = []
+  private async buildActions () {
+    const userActions: DropdownAction<{ user: User, account: AccountMutedStatus }>[][] = []
 
     if (this.prependActions && this.prependActions.length !== 0) {
-      this.userActions = [
-        this.prependActions
-      ]
+      userActions.push(this.prependActions)
     }
 
     const myAccountModerationActions = this.buildMyAccountModerationActions()
     const instanceModerationActions = this.buildInstanceModerationActions()
 
-    if (myAccountModerationActions.length !== 0) this.userActions.push(myAccountModerationActions)
-    if (instanceModerationActions.length !== 0) this.userActions.push(instanceModerationActions)
+    if (myAccountModerationActions.length !== 0) userActions.push(myAccountModerationActions)
+    if (instanceModerationActions.length !== 0) userActions.push(instanceModerationActions)
+
+    this.userActions = await this.hooks.wrapObject(userActions, 'moderation', 'filter:user-moderation.actions.create.result')
   }
 
   private buildMyAccountModerationActions () {
-    if (!this.account || !this.authService.isLoggedIn()) return []
+    if (!this.account || !this.displayOptions.myAccount || !this.authService.isLoggedIn()) return []
 
-    const myAccountActions: DropdownAction<{ user: User, account: Account }>[] = [
+    const myAccountActions: DropdownAction<{ user: User, account: AccountMutedStatus }>[] = [
       {
         label: $localize`My account moderation`,
         class: [ 'red' ],
@@ -287,15 +310,15 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
         handler: ({ account }) => this.unblockAccountByUser(account)
       },
       {
-        label: $localize`Mute the instance`,
-        description: $localize`Hide any content from that instance for you.`,
-        isDisplayed: ({ account }) => !account.userId && account.mutedServerByInstance === false,
+        label: $localize`Mute the platform`,
+        description: $localize`Hide any content from that platform for you.`,
+        isDisplayed: ({ account }) => !account.userId && account.mutedServerByUser === false,
         handler: ({ account }) => this.blockServerByUser(account.host)
       },
       {
-        label: $localize`Unmute the instance`,
-        description: $localize`Show back content from that instance for you.`,
-        isDisplayed: ({ account }) => !account.userId && account.mutedServerByInstance === true,
+        label: $localize`Unmute the platform`,
+        description: $localize`Show back content from that platform for you.`,
+        isDisplayed: ({ account }) => !account.userId && account.mutedServerByUser === true,
         handler: ({ account }) => this.unblockServerByUser(account.host)
       },
       {
@@ -314,9 +337,9 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
 
     const authUser = this.authService.getUser()
 
-    let instanceActions: DropdownAction<{ user: User, account: Account }>[] = []
+    let instanceActions: DropdownAction<{ user: User, account: AccountMutedStatus }>[] = []
 
-    if (this.user && authUser.hasRight(UserRight.MANAGE_USERS) && authUser.canManage(this.user)) {
+    if (this.user && this.displayOptions.instanceUser && authUser.hasRight(UserRight.MANAGE_USERS) && authUser.canManage(this.user)) {
       instanceActions = instanceActions.concat([
         {
           label: $localize`Edit user`,
@@ -344,23 +367,23 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
         {
           label: $localize`Set Email as Verified`,
           handler: ({ user }) => this.setEmailAsVerified(user),
-          isDisplayed: ({ user }) => this.requiresEmailVerification && !user.blocked && user.emailVerified === false
+          isDisplayed: ({ user }) => !user.blocked && user.emailVerified !== true
         }
       ])
     }
 
     // Instance actions on account blocklists
-    if (this.account && authUser.hasRight(UserRight.MANAGE_ACCOUNTS_BLOCKLIST)) {
+    if (this.account && this.displayOptions.instanceAccount && authUser.hasRight(UserRight.MANAGE_ACCOUNTS_BLOCKLIST)) {
       instanceActions = instanceActions.concat([
         {
           label: $localize`Mute this account`,
-          description: $localize`Hide any content from that user from you, your instance and its users.`,
+          description: $localize`Hide any content from that user from you, your platform and its users.`,
           isDisplayed: ({ account }) => !this.isMyAccount(account) && account.mutedByInstance === false,
           handler: ({ account }) => this.blockAccountByInstance(account)
         },
         {
           label: $localize`Unmute this account`,
-          description: $localize`Show this user's content to the users of this instance again.`,
+          description: $localize`Show this user's content to the users of this platform again.`,
           isDisplayed: ({ account }) => !this.isMyAccount(account) && account.mutedByInstance === true,
           handler: ({ account }) => this.unblockAccountByInstance(account)
         }
@@ -368,28 +391,28 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
     }
 
     // Instance actions on server blocklists
-    if (this.account && authUser.hasRight(UserRight.MANAGE_SERVERS_BLOCKLIST)) {
+    if (this.account && this.displayOptions.instanceAccount && authUser.hasRight(UserRight.MANAGE_SERVERS_BLOCKLIST)) {
       instanceActions = instanceActions.concat([
         {
-          label: $localize`Mute the instance`,
-          description: $localize`Hide any content from that instance from you, your instance and its users.`,
+          label: $localize`Mute the platform`,
+          description: $localize`Hide any content from that platform from you, your platform and its users.`,
           isDisplayed: ({ account }) => !account.userId && account.mutedServerByInstance === false,
           handler: ({ account }) => this.blockServerByInstance(account.host)
         },
         {
-          label: $localize`Unmute the instance by your instance`,
-          description: $localize`Show back content from that instance for you, your instance and its users.`,
+          label: $localize`Unmute the platform by your platform`,
+          description: $localize`Show back content from that platform for you, your platform and its users.`,
           isDisplayed: ({ account }) => !account.userId && account.mutedServerByInstance === true,
           handler: ({ account }) => this.unblockServerByInstance(account.host)
         }
       ])
     }
 
-    if (this.account && authUser.hasRight(UserRight.REMOVE_ANY_VIDEO_COMMENT)) {
+    if (this.account && this.displayOptions.instanceAccount && authUser.hasRight(UserRight.MANAGE_ANY_VIDEO_COMMENT)) {
       instanceActions = instanceActions.concat([
         {
-          label: $localize`Remove comments from your instance`,
-          description: $localize`Remove comments made by this account from your instance.`,
+          label: $localize`Remove comments from your platform`,
+          description: $localize`Remove comments made by this account from your platform.`,
           isDisplayed: ({ account }) => !this.isMyAccount(account),
           handler: ({ account }) => this.bulkRemoveCommentsOf({ accountName: account.nameWithHost, scope: 'instance' })
         }
@@ -398,6 +421,6 @@ export class UserModerationDropdownComponent implements OnInit, OnChanges {
 
     if (instanceActions.length === 0) return []
 
-    return [ { label: $localize`Instance moderation`, isHeader: true }, ...instanceActions ]
+    return [ { label: $localize`Platform moderation`, isHeader: true }, ...instanceActions ]
   }
 }

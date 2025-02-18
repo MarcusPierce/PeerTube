@@ -3,7 +3,7 @@
 @use '_miniature' as *;
 
 .comment-html {
-  background-color: #ececec;
+  background-color: pvar(--bg-secondary-400);
   padding: 10px;
 }
 
@@ -14,4 +14,8 @@
 
 .abuse-details-links {
   @include disable-default-a-behaviour;
+}
+
+my-global-icon[iconName=flag] {
+  @include global-icon-size(15px);
 }

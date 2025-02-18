@@ -5,8 +5,8 @@ import { HttpClient, HttpParams } from '@angular/common/http'
 import { Injectable } from '@angular/core'
 import { RestExtractor, RestPagination, RestService, ServerService, UserService } from '@app/core'
 import { objectToFormData } from '@app/helpers'
-import { peertubeTranslate } from '@shared/core-utils/i18n'
-import { ResultList, VideoImport, VideoImportCreate, VideoUpdate } from '@shared/models'
+import { peertubeTranslate } from '@peertube/peertube-core-utils'
+import { ResultList, VideoImport, VideoImportCreate, VideoUpdate } from '@peertube/peertube-models'
 import { environment } from '../../../../environments/environment'
 
 @Injectable()
@@ -43,17 +43,39 @@ export class VideoImportService {
                .pipe(catchError(res => this.restExtractor.handleError(res)))
   }
 
-  getMyVideoImports (pagination: RestPagination, sort: SortMeta): Observable<ResultList<VideoImport>> {
+  getMyVideoImports (pagination: RestPagination, sort: SortMeta, search?: string): Observable<ResultList<VideoImport>> {
     let params = new HttpParams()
     params = this.restService.addRestGetParams(params, pagination, sort)
 
+    if (search) {
+      const filters = this.restService.parseQueryStringFilter(search, {
+        videoChannelSyncId: {
+          prefix: 'videoChannelSyncId:'
+        },
+        targetUrl: {
+          prefix: 'targetUrl:'
+        }
+      })
+
+      params = this.restService.addObjectParams(params, filters)
+    }
+
     return this.authHttp
-               .get<ResultList<VideoImport>>(UserService.BASE_USERS_URL + '/me/videos/imports', { params })
+               .get<ResultList<VideoImport>>(UserService.BASE_USERS_URL + 'me/videos/imports', { params })
                .pipe(
                  switchMap(res => this.extractVideoImports(res)),
-                 map(res => this.restExtractor.convertResultListDateToHuman(res)),
                  catchError(err => this.restExtractor.handleError(err))
                )
+  }
+
+  deleteVideoImport (videoImport: VideoImport) {
+    return this.authHttp.delete(VideoImportService.BASE_VIDEO_IMPORT_URL + videoImport.id)
+                        .pipe(catchError(err => this.restExtractor.handleError(err)))
+  }
+
+  cancelVideoImport (videoImport: VideoImport) {
+    return this.authHttp.post(VideoImportService.BASE_VIDEO_IMPORT_URL + videoImport.id + '/cancel', {})
+                        .pipe(catchError(err => this.restExtractor.handleError(err)))
   }
 
   private buildImportVideoObject (video: VideoUpdate): VideoImportCreate {
@@ -77,7 +99,7 @@ export class VideoImportService {
       tags: video.tags,
       nsfw: video.nsfw,
       waitTranscoding: video.waitTranscoding,
-      commentsEnabled: video.commentsEnabled,
+      commentsPolicy: video.commentsPolicy,
       downloadEnabled: video.downloadEnabled,
       thumbnailfile: video.thumbnailfile,
       previewfile: video.previewfile,

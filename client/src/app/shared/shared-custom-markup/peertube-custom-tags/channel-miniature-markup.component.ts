@@ -1,11 +1,17 @@
 import { from } from 'rxjs'
 import { finalize, map, switchMap, tap } from 'rxjs/operators'
-import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core'
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output } from '@angular/core'
 import { MarkdownService, Notifier, UserService } from '@app/core'
-import { FindInBulkService } from '@app/shared/shared-search'
-import { VideoSortField } from '@shared/models'
-import { Video, VideoChannel, VideoService } from '../../shared-main'
+import { VideoSortField } from '@peertube/peertube-models'
 import { CustomMarkupComponent } from './shared'
+import { VideoMiniatureMarkupComponent } from './video-miniature-markup.component'
+import { RouterLink } from '@angular/router'
+import { ActorAvatarComponent } from '../../shared-actor-image/actor-avatar.component'
+import { NgIf } from '@angular/common'
+import { VideoService } from '@app/shared/shared-main/video/video.service'
+import { VideoChannel } from '@app/shared/shared-main/channel/video-channel.model'
+import { Video } from '@app/shared/shared-main/video/video.model'
+import { FindInBulkService } from '@app/shared/shared-search/find-in-bulk.service'
 
 /*
  * Markup component that creates a channel miniature only
@@ -14,7 +20,9 @@ import { CustomMarkupComponent } from './shared'
 @Component({
   selector: 'my-channel-miniature-markup',
   templateUrl: 'channel-miniature-markup.component.html',
-  styleUrls: [ 'channel-miniature-markup.component.scss' ]
+  styleUrls: [ 'channel-miniature-markup.component.scss' ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ NgIf, ActorAvatarComponent, RouterLink, VideoMiniatureMarkupComponent ]
 })
 export class ChannelMiniatureMarkupComponent implements CustomMarkupComponent, OnInit {
   @Input() name: string
@@ -33,7 +41,8 @@ export class ChannelMiniatureMarkupComponent implements CustomMarkupComponent, O
     private findInBulk: FindInBulkService,
     private videoService: VideoService,
     private userService: UserService,
-    private notifier: Notifier
+    private notifier: Notifier,
+    private cd: ChangeDetectorRef
   ) { }
 
   ngOnInit () {
@@ -42,7 +51,11 @@ export class ChannelMiniatureMarkupComponent implements CustomMarkupComponent, O
         tap(channel => {
           this.channel = channel
         }),
-        switchMap(() => from(this.markdown.textMarkdownToHTML(this.channel.description))),
+        switchMap(() => from(this.markdown.textMarkdownToHTML({
+          markdown: this.channel.description,
+          withEmoji: true,
+          withHtml: true
+        }))),
         tap(html => {
           this.descriptionHTML = html
         }),
@@ -52,6 +65,8 @@ export class ChannelMiniatureMarkupComponent implements CustomMarkupComponent, O
         next: ({ total, data }) => {
           this.totalVideos = total
           this.video = data[0]
+
+          this.cd.markForCheck()
         },
 
         error: err => this.notifier.error($localize`Error in channel miniature component: ${err.message}`)
@@ -76,7 +91,9 @@ export class ChannelMiniatureMarkupComponent implements CustomMarkupComponent, O
     return this.userService.getAnonymousOrLoggedUser()
       .pipe(
         map(user => user.nsfwPolicy),
-        switchMap(nsfwPolicy => this.videoService.getVideoChannelVideos({ ...videoOptions, nsfwPolicy }))
+        switchMap(nsfwPolicy => {
+          return this.videoService.getVideoChannelVideos({ ...videoOptions, nsfw: this.videoService.nsfwPolicyToParam(nsfwPolicy) })
+        })
       )
   }
 }

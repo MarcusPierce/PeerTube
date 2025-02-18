@@ -1,18 +1,27 @@
-import { Observable, Subject } from 'rxjs'
+import { NgFor, NgIf, NgTemplateOutlet } from '@angular/common'
 import { AfterContentInit, Component, ContentChildren, EventEmitter, Input, Output, QueryList, TemplateRef } from '@angular/core'
-import { ComponentPagination, Notifier, User } from '@app/core'
-import { ResultList, VideoSortField } from '@shared/models'
-import { PeerTubeTemplateDirective, Video } from '../shared-main'
-import { MiniatureDisplayOptions } from './video-miniature.component'
+import { FormsModule } from '@angular/forms'
+import { ComponentPagination, Notifier, resetCurrentPage, User } from '@app/core'
+import { objectKeysTyped } from '@peertube/peertube-core-utils'
+import { ResultList, VideosExistInPlaylists, VideoSortField } from '@peertube/peertube-models'
+import { logger } from '@root-helpers/logger'
+import { Observable, Subject } from 'rxjs'
+import { PeertubeCheckboxComponent } from '../shared-forms/peertube-checkbox.component'
+import { InfiniteScrollerDirective } from '../shared-main/common/infinite-scroller.directive'
+import { PeerTubeTemplateDirective } from '../shared-main/common/peertube-template.directive'
+import { Video } from '../shared-main/video/video.model'
+import { MiniatureDisplayOptions, VideoMiniatureComponent } from './video-miniature.component'
 
 export type SelectionType = { [ id: number ]: boolean }
 
 @Component({
   selector: 'my-videos-selection',
   templateUrl: './videos-selection.component.html',
-  styleUrls: [ './videos-selection.component.scss' ]
+  styleUrls: [ './videos-selection.component.scss' ],
+  imports: [ NgIf, InfiniteScrollerDirective, NgFor, PeertubeCheckboxComponent, FormsModule, VideoMiniatureComponent, NgTemplateOutlet ]
 })
 export class VideosSelectionComponent implements AfterContentInit {
+  @Input() videosContainedInPlaylists: VideosExistInPlaylists
   @Input() user: User
   @Input() pagination: ComponentPagination
 
@@ -91,7 +100,7 @@ export class VideosSelectionComponent implements AfterContentInit {
   }
 
   isInSelectionMode () {
-    return Object.keys(this._selection).some(k => this._selection[k] === true)
+    return objectKeysTyped(this._selection).some(k => this._selection[k] === true)
   }
 
   videoById (index: number, video: Video) {
@@ -110,6 +119,8 @@ export class VideosSelectionComponent implements AfterContentInit {
   }
 
   loadMoreVideos (reset = false) {
+    if (reset) this.hasDoneFirstQuery = false
+
     this.getVideosObservable(this.pagination.currentPage)
       .subscribe({
         next: ({ data }) => {
@@ -126,18 +137,14 @@ export class VideosSelectionComponent implements AfterContentInit {
         error: err => {
           const message = $localize`Cannot load more videos. Try again later.`
 
-          console.error(message, { err })
+          logger.error(message, err)
           this.notifier.error(message)
         }
       })
   }
 
   reloadVideos () {
-    this.pagination.currentPage = 1
+    resetCurrentPage(this.pagination)
     this.loadMoreVideos(true)
-  }
-
-  removeVideoFromArray (video: Video) {
-    this.videos = this.videos.filter(v => v.id !== video.id)
   }
 }

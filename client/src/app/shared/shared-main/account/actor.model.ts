@@ -1,5 +1,5 @@
-import { getAbsoluteAPIUrl } from '@app/helpers'
-import { Actor as ServerActor, ActorImage } from '@shared/models'
+import { getAbsoluteAPIUrl, getAPIHost } from '@app/helpers'
+import { Actor as ServerActor, ActorImage } from '@peertube/peertube-models'
 
 export abstract class Actor implements ServerActor {
   id: number
@@ -13,25 +13,28 @@ export abstract class Actor implements ServerActor {
 
   createdAt: Date | string
 
-  avatar: ActorImage
+  avatars: ActorImage[]
 
   isLocal: boolean
 
-  static GET_ACTOR_AVATAR_URL (actor: { avatar?: { url?: string, path: string } }) {
-    if (actor?.avatar?.url) return actor.avatar.url
+  static GET_ACTOR_AVATAR_URL (actor: { avatars: { width: number, fileUrl?: string, url?: string, path: string }[] }, size?: number) {
+    const avatarsAscWidth = actor.avatars.sort((a, b) => a.width - b.width)
 
-    if (actor?.avatar) {
-      const absoluteAPIUrl = getAbsoluteAPIUrl()
+    const avatar = size && avatarsAscWidth.length > 1
+      ? avatarsAscWidth.find(a => a.width >= size)
+      : avatarsAscWidth[avatarsAscWidth.length - 1] // Bigger one
 
-      return absoluteAPIUrl + actor.avatar.path
-    }
+    if (!avatar) return ''
+    if (avatar.fileUrl) return avatar.fileUrl
+    if (avatar.url) return avatar.url
 
-    return ''
+    const absoluteAPIUrl = getAbsoluteAPIUrl()
+
+    return absoluteAPIUrl + avatar.path
   }
 
   static CREATE_BY_STRING (accountName: string, host: string, forceHostname = false) {
-    const absoluteAPIUrl = getAbsoluteAPIUrl()
-    const thisHost = new URL(absoluteAPIUrl).host
+    const thisHost = getAPIHost()
 
     if (host.trim() === thisHost && !forceHostname) return accountName
 
@@ -39,8 +42,7 @@ export abstract class Actor implements ServerActor {
   }
 
   static IS_LOCAL (host: string) {
-    const absoluteAPIUrl = getAbsoluteAPIUrl()
-    const thisHost = new URL(absoluteAPIUrl).host
+    const thisHost = getAPIHost()
 
     return host.trim() === thisHost
   }
@@ -55,7 +57,7 @@ export abstract class Actor implements ServerActor {
 
     if (hash.createdAt) this.createdAt = new Date(hash.createdAt.toString())
 
-    this.avatar = hash.avatar
+    this.avatars = hash.avatars || []
     this.isLocal = Actor.IS_LOCAL(this.host)
   }
 }

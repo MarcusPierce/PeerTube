@@ -1,10 +1,10 @@
 import { SortMeta } from 'primeng/api'
 import { concat, Observable } from 'rxjs'
-import { catchError, map, toArray } from 'rxjs/operators'
+import { catchError, toArray } from 'rxjs/operators'
 import { HttpClient, HttpParams } from '@angular/common/http'
 import { Injectable } from '@angular/core'
 import { RestExtractor, RestPagination, RestService } from '@app/core'
-import { ResultList, Video, VideoRedundanciesTarget, VideoRedundancy } from '@shared/models'
+import { ResultList, Video, VideoRedundanciesTarget, VideoRedundancy } from '@peertube/peertube-models'
 import { environment } from '../../../../environments/environment'
 
 @Injectable()
@@ -23,10 +23,7 @@ export class RedundancyService {
     const body = { redundancyAllowed }
 
     return this.authHttp.put(url, body)
-               .pipe(
-                 map(this.restExtractor.extractDataBool),
-                 catchError(err => this.restExtractor.handleError(err))
-               )
+               .pipe(catchError(err => this.restExtractor.handleError(err)))
   }
 
   listVideoRedundancies (options: {
@@ -56,7 +53,6 @@ export class RedundancyService {
 
   removeVideoRedundancies (redundancy: VideoRedundancy) {
     const observables = redundancy.redundancies.streamingPlaylists.map(r => r.id)
-      .concat(redundancy.redundancies.files.map(r => r.id))
       .map(id => this.removeRedundancy(id))
 
     return concat(...observables)
@@ -65,9 +61,6 @@ export class RedundancyService {
 
   private removeRedundancy (redundancyId: number) {
     return this.authHttp.delete(RedundancyService.BASE_REDUNDANCY_URL + '/videos/' + redundancyId)
-               .pipe(
-                 map(this.restExtractor.extractDataBool),
-                 catchError(res => this.restExtractor.handleError(res))
-               )
+               .pipe(catchError(res => this.restExtractor.handleError(res)))
   }
 }

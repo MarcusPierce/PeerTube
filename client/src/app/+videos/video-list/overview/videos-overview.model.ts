@@ -1,5 +1,5 @@
-import { Video } from '@app/shared/shared-main'
-import { VideoChannelSummary, VideoConstant, VideosOverview as VideosOverviewServer } from '@shared/models'
+import { Video } from '@app/shared/shared-main/video/video.model'
+import { VideoChannelSummary, VideoConstant, VideosOverview as VideosOverviewServer } from '@peertube/peertube-models'
 
 export class VideosOverview implements VideosOverviewServer {
   channels: {
@@ -16,5 +16,4 @@ export class VideosOverview implements VideosOverviewServer {
     tag: string
     videos: Video[]
   }[]
-  [key: string]: any
 }

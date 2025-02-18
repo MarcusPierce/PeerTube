@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core'
-import { FormBuilder, FormControl, FormGroup, ValidatorFn } from '@angular/forms'
+import { AsyncValidatorFn, FormArray, FormBuilder, FormControl, FormGroup, ValidatorFn } from '@angular/forms'
+import { objectKeysTyped } from '@peertube/peertube-core-utils'
 import { BuildFormArgument, BuildFormDefaultValues } from '../form-validators/form-validator.model'
-import { FormReactiveErrors, FormReactiveValidationMessages } from './form-reactive'
+import { FormReactiveErrors, FormReactiveValidationMessages } from './form-reactive.service'
 
 @Injectable()
 export class FormValidatorService {
@@ -30,7 +31,7 @@ export class FormValidatorService {
 
       if (field?.MESSAGES) validationMessages[name] = field.MESSAGES as { [ name: string ]: string }
 
-      const defaultValue = defaultValues[name] || ''
+      const defaultValue = defaultValues[name] ?? ''
 
       if (field?.VALIDATORS) group[name] = [ defaultValue, field.VALIDATORS ]
       else group[name] = [ defaultValue ]
@@ -40,34 +41,102 @@ export class FormValidatorService {
     return { form, formErrors, validationMessages }
   }
 
-  updateForm (
+  updateFormGroup (
     form: FormGroup,
     formErrors: FormReactiveErrors,
     validationMessages: FormReactiveValidationMessages,
-    obj: BuildFormArgument,
+    formToBuild: BuildFormArgument,
     defaultValues: BuildFormDefaultValues = {}
   ) {
-    for (const name of Object.keys(obj)) {
-      formErrors[name] = ''
+    for (const name of objectKeysTyped(formToBuild)) {
+      const field = formToBuild[name]
 
-      const field = obj[name]
       if (this.isRecursiveField(field)) {
-        this.updateForm(
-          form[name],
-          formErrors[name] as FormReactiveErrors,
+        formErrors[name] = {}
+
+        this.updateFormGroup(
+          // FIXME: typings
+          (form as any)[name],
+          formErrors[name],
           validationMessages[name] as FormReactiveValidationMessages,
-          obj[name] as BuildFormArgument,
+          formToBuild[name] as BuildFormArgument,
           defaultValues[name] as BuildFormDefaultValues
         )
         continue
       }
 
+      formErrors[name] = ''
+
       if (field?.MESSAGES) validationMessages[name] = field.MESSAGES as { [ name: string ]: string }
 
-      const defaultValue = defaultValues[name] || ''
+      const defaultValue = defaultValues[name] ?? ''
 
-      if (field?.VALIDATORS) form.addControl(name, new FormControl(defaultValue, field.VALIDATORS as ValidatorFn[]))
-      else form.addControl(name, new FormControl(defaultValue))
+      form.addControl(
+        name + '',
+        new FormControl(defaultValue, field?.VALIDATORS as ValidatorFn[], field?.ASYNC_VALIDATORS as AsyncValidatorFn[])
+      )
+    }
+  }
+
+  addControlInFormArray (options: {
+    formErrors: FormReactiveErrors
+    validationMessages: FormReactiveValidationMessages
+    formArray: FormArray
+    controlName: string
+    formToBuild: BuildFormArgument
+    defaultValues?: BuildFormDefaultValues
+  }) {
+    const { formArray, formErrors, validationMessages, controlName, formToBuild, defaultValues = {} } = options
+
+    const formGroup = new FormGroup({})
+    if (!formErrors[controlName]) formErrors[controlName] = [] as FormReactiveErrors[]
+    if (!validationMessages[controlName]) validationMessages[controlName] = []
+
+    const formArrayErrors = formErrors[controlName] as FormReactiveErrors[]
+    const formArrayValidationMessages = validationMessages[controlName] as FormReactiveValidationMessages[]
+
+    const totalControls = formArray.controls.length
+    formArrayErrors.push({})
+    formArrayValidationMessages.push({})
+
+    this.updateFormGroup(
+      formGroup,
+      formArrayErrors[totalControls],
+      formArrayValidationMessages[totalControls],
+      formToBuild,
+      defaultValues
+    )
+
+    formArray.push(formGroup)
+  }
+
+  removeControlFromFormArray (options: {
+    formErrors: FormReactiveErrors
+    validationMessages: FormReactiveValidationMessages
+    index: number
+    formArray: FormArray
+    controlName: string
+  }) {
+    const { formArray, formErrors, validationMessages, index, controlName } = options
+
+    const formArrayErrors = formErrors[controlName] as FormReactiveErrors[]
+    const formArrayValidationMessages = validationMessages[controlName] as FormReactiveValidationMessages[]
+
+    formArrayErrors.splice(index, 1)
+    formArrayValidationMessages.splice(index, 1)
+    formArray.removeAt(index)
+  }
+
+  updateTreeValidity (group: FormGroup | FormArray): void {
+    for (const key of Object.keys(group.controls)) {
+      // FIXME: typings
+      const abstractControl = (group.controls as any)[key] as FormControl
+
+      if (abstractControl instanceof FormGroup || abstractControl instanceof FormArray) {
+        this.updateTreeValidity(abstractControl)
+      } else {
+        abstractControl.updateValueAndValidity({ emitEvent: false })
+      }
     }
   }
 

@@ -2,7 +2,8 @@
   "root": true,
   "ignorePatterns": [
     "projects/**/*",
-    "node_modules/"
+    "node_modules/",
+    "src/standalone/embed-player-api/dist"
   ],
   "overrides": [
     {
@@ -13,12 +14,12 @@
         "project": [
           "tsconfig.eslint.json"
         ],
+        "EXPERIMENTAL_useSourceOfProjectReferenceRedirect": true,
         "createDefaultProgram": false
       },
       "extends": [
         "../.eslintrc.json",
-        "plugin:@angular-eslint/ng-cli-compat",
-        "plugin:@angular-eslint/ng-cli-compat--formatting-add-on",
+        "plugin:@angular-eslint/recommended",
         "plugin:@angular-eslint/template/process-inline-templates"
       ],
       "rules": {
@@ -27,9 +28,8 @@
         "lines-between-class-members": "off",
         "@typescript-eslint/lines-between-class-members": [ "off" ],
         "arrow-body-style": "off",
-        "import/no-webpack-loader-syntax": "off",
         "no-underscore-dangle": "off",
-        "node/no-callback-literal": "off",
+        "n/no-callback-literal": "off",
         "@angular-eslint/component-selector": [
           "error",
           {
@@ -154,7 +154,17 @@
         "object-shorthand": [
           "error",
           "properties"
-        ]
+        ],
+        "quote-props": [
+          "error",
+          "consistent-as-needed"
+        ],
+        "no-constant-binary-expression": "error",
+        "@typescript-eslint/unbound-method": [
+          "error",
+          { "ignoreStatic": true }
+        ],
+        "import/no-named-default": "off"
       }
     },
     {
@@ -162,7 +172,8 @@
         "*.html"
       ],
       "extends": [
-        "plugin:@angular-eslint/template/recommended"
+        "plugin:@angular-eslint/template/recommended",
+        "plugin:@angular-eslint/template/accessibility"
       ],
       "rules": {}
     }

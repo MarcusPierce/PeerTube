@@ -1,9 +1,9 @@
 import { Routes } from '@angular/router'
 import { EditCustomConfigComponent } from '@app/+admin/config/edit-custom-config'
 import { UserRightGuard } from '@app/core'
-import { UserRight } from '@shared/models'
+import { UserRight } from '@peertube/peertube-models'
 
-export const ConfigRoutes: Routes = [
+export const configRoutes: Routes = [
   {
     path: 'config',
     canActivate: [ UserRightGuard ],

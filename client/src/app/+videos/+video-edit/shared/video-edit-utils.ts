@@ -1,5 +1,5 @@
 import { FormGroup } from '@angular/forms'
-import { VideoEdit } from '@app/shared/shared-main'
+import { VideoEdit } from '@app/shared/shared-main/video/video-edit.model'
 
 function hydrateFormFromVideo (formGroup: FormGroup, video: VideoEdit, thumbnailFiles: boolean) {
   formGroup.patchValue(video.toFormPatch())
@@ -8,11 +8,11 @@ function hydrateFormFromVideo (formGroup: FormGroup, video: VideoEdit, thumbnail
 
   const objects = [
     {
-      url: 'thumbnailUrl',
+      url: 'thumbnailUrl' as 'thumbnailUrl',
       name: 'thumbnailfile'
     },
     {
-      url: 'previewUrl',
+      url: 'previewUrl' as 'previewUrl',
       name: 'previewfile'
     }
   ]

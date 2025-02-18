@@ -1,11 +1,14 @@
 import { CdkStep, CdkStepper } from '@angular/cdk/stepper'
 import { Component } from '@angular/core'
+import { GlobalIconComponent } from '../../shared/shared-icons/global-icon.component'
+import { NgIf, NgFor, NgClass, NgTemplateOutlet } from '@angular/common'
 
 @Component({
   selector: 'my-custom-stepper',
   templateUrl: './custom-stepper.component.html',
   styleUrls: [ './custom-stepper.component.scss' ],
-  providers: [ { provide: CdkStepper, useExisting: CustomStepperComponent } ]
+  providers: [ { provide: CdkStepper, useExisting: CustomStepperComponent } ],
+  imports: [ NgIf, NgFor, NgClass, GlobalIconComponent, NgTemplateOutlet ]
 })
 export class CustomStepperComponent extends CdkStepper {
 
@@ -14,13 +17,10 @@ export class CustomStepperComponent extends CdkStepper {
   }
 
   isCompleted (step: CdkStep) {
-    return step.stepControl?.dirty && step.stepControl.valid
+    return step.completed
   }
 
-  isAccessible (index: number) {
-    const stepsCompletedMap = this.steps.map(step => this.isCompleted(step))
-    return index === 0
-      ? true
-      : stepsCompletedMap[index - 1]
+  isAccessible (step: CdkStep) {
+    return step.editable && step.completed
   }
 }

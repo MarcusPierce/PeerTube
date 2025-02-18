@@ -1,11 +1,31 @@
+import { NgFor, NgIf } from '@angular/common'
 import { Component, ElementRef, Input, ViewChild } from '@angular/core'
+import { FormsModule } from '@angular/forms'
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser'
-import { VideoDetails } from '@app/shared/shared-main'
-import { VideoPlaylist } from '@app/shared/shared-video-playlist'
-import { NgbModal } from '@ng-bootstrap/ng-bootstrap'
-import { buildPlaylistLink, buildVideoLink, decoratePlaylistLink, decorateVideoLink } from '@shared/core-utils'
-import { VideoCaption, VideoPlaylistPrivacy, VideoPrivacy } from '@shared/models'
-import { buildVideoOrPlaylistEmbed } from '../../../assets/player/utils'
+import { RouterLink } from '@angular/router'
+import { HooksService, ServerService } from '@app/core'
+import { VideoDetails } from '@app/shared/shared-main/video/video-details.model'
+import {
+  NgbCollapse,
+  NgbModal,
+  NgbNav,
+  NgbNavContent,
+  NgbNavItem,
+  NgbNavLink,
+  NgbNavLinkBase,
+  NgbNavOutlet
+} from '@ng-bootstrap/ng-bootstrap'
+import { buildPlaylistLink, buildVideoLink, decoratePlaylistLink, decorateVideoLink } from '@peertube/peertube-core-utils'
+import { VideoCaption, VideoPlaylistPrivacy, VideoPrivacy } from '@peertube/peertube-models'
+import { buildVideoOrPlaylistEmbed } from '@root-helpers/video'
+import { QRCodeComponent } from 'angularx-qrcode'
+import { InputTextComponent } from '../shared-forms/input-text.component'
+import { PeertubeCheckboxComponent } from '../shared-forms/peertube-checkbox.component'
+import { TimestampInputComponent } from '../shared-forms/timestamp-input.component'
+import { GlobalIconComponent } from '../shared-icons/global-icon.component'
+import { AlertComponent } from '../shared-main/common/alert.component'
+import { PluginPlaceholderComponent } from '../shared-main/plugins/plugin-placeholder.component'
+import { VideoPlaylist } from '../shared-video-playlist/video-playlist.model'
 
 type Customizations = {
   startAtCheckbox: boolean
@@ -21,10 +41,16 @@ type Customizations = {
   originUrl: boolean
   autoplay: boolean
   muted: boolean
+
+  embedP2P: boolean
+  onlyEmbedUrl: boolean
   title: boolean
   warningTitle: boolean
-  controls: boolean
+  controlBar: boolean
   peertubeLink: boolean
+  responsive: boolean
+
+  includeVideoInPlaylist: boolean
 }
 
 type TabId = 'url' | 'qrcode' | 'embed'
@@ -32,7 +58,27 @@ type TabId = 'url' | 'qrcode' | 'embed'
 @Component({
   selector: 'my-video-share',
   templateUrl: './video-share.component.html',
-  styleUrls: [ './video-share.component.scss' ]
+  styleUrls: [ './video-share.component.scss' ],
+  imports: [
+    GlobalIconComponent,
+    NgIf,
+    RouterLink,
+    NgbNav,
+    NgbNavItem,
+    NgbNavLink,
+    NgbNavLinkBase,
+    NgbNavContent,
+    InputTextComponent,
+    QRCodeComponent,
+    NgbNavOutlet,
+    PeertubeCheckboxComponent,
+    FormsModule,
+    PluginPlaceholderComponent,
+    TimestampInputComponent,
+    NgFor,
+    NgbCollapse,
+    AlertComponent
+  ]
 })
 export class VideoShareComponent {
   @ViewChild('modal', { static: true }) modal: ElementRef
@@ -47,14 +93,23 @@ export class VideoShareComponent {
 
   customizations: Customizations
   isAdvancedCustomizationCollapsed = true
-  includeVideoInPlaylist = false
 
-  playlistEmbedHTML: SafeHtml
-  videoEmbedHTML: SafeHtml
+  videoUrl: string
+  playlistUrl: string
+
+  videoEmbedUrl: string
+  playlistEmbedUrl: string
+
+  videoEmbedHTML: string
+  videoEmbedSafeHTML: SafeHtml
+  playlistEmbedHTML: string
+  playlistEmbedSafeHTML: SafeHtml
 
   constructor (
     private modalService: NgbModal,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    private server: ServerService,
+    private hooks: HooksService
   ) { }
 
   show (currentVideoTimestamp?: number, currentPlaylistPosition?: number) {
@@ -79,15 +134,25 @@ export class VideoShareComponent {
       muted: false,
 
       // Embed options
+      embedP2P: this.server.getHTMLConfig().defaults.p2p.embed.enabled,
+      onlyEmbedUrl: false,
       title: true,
       warningTitle: true,
-      controls: true,
-      peertubeLink: true
+      controlBar: true,
+      peertubeLink: true,
+      responsive: false,
+
+      includeVideoInPlaylist: false
     }, {
       set: (target, prop, value) => {
-        target[prop] = value
+        (target as any)[prop] = value
 
-        this.updateEmbedCode()
+        if (prop === 'embedP2P') {
+          // Auto enabled warning title if P2P is enabled
+          this.customizations.warningTitle = value
+        }
+
+        this.onUpdate()
 
         return true
       }
@@ -95,54 +160,118 @@ export class VideoShareComponent {
 
     this.playlistPosition = currentPlaylistPosition
 
-    this.updateEmbedCode()
+    this.onUpdate()
 
-    this.modalService.open(this.modal, { centered: true })
+    this.modalService.open(this.modal, { centered: true }).shown.subscribe(() => {
+      this.hooks.runAction('action:modal.share.shown', 'video-watch', { video: this.video, playlist: this.playlist })
+    })
   }
 
-  getVideoIframeCode () {
-    const embedUrl = decorateVideoLink({ url: this.video.embedUrl, ...this.getVideoOptions() })
-
-    return buildVideoOrPlaylistEmbed(embedUrl, this.video.name)
-  }
-
-  getPlaylistIframeCode () {
-    const embedUrl = decoratePlaylistLink({ url: this.playlist.embedUrl, ...this.getPlaylistOptions() })
-
-    return buildVideoOrPlaylistEmbed(embedUrl, this.playlist.displayName)
-  }
+  // ---------------------------------------------------------------------------
 
   getVideoUrl () {
     const url = this.customizations.originUrl
       ? this.video.url
       : buildVideoLink(this.video, window.location.origin)
 
-    return decorateVideoLink({
-      url,
-
-      ...this.getVideoOptions()
-    })
+    return this.hooks.wrapFun(
+      decorateVideoLink,
+      { url, ...this.getVideoOptions(false) },
+      'video-watch',
+      'filter:share.video-url.build.params',
+      'filter:share.video-url.build.result'
+    )
   }
+
+  getVideoEmbedUrl () {
+    return this.hooks.wrapFun(
+      decorateVideoLink,
+      { url: this.video.embedUrl, ...this.getVideoOptions(true) },
+      'video-watch',
+      'filter:share.video-embed-url.build.params',
+      'filter:share.video-embed-url.build.result'
+    )
+  }
+
+  async getVideoEmbedCode (options: { responsive: boolean }) {
+    const { responsive } = options
+    return this.hooks.wrapFun(
+      buildVideoOrPlaylistEmbed,
+      { embedUrl: await this.getVideoEmbedUrl(), embedTitle: this.video.name, responsive, aspectRatio: this.video.aspectRatio },
+      'video-watch',
+      'filter:share.video-embed-code.build.params',
+      'filter:share.video-embed-code.build.result'
+    )
+  }
+
+  // ---------------------------------------------------------------------------
 
   getPlaylistUrl () {
     const url = buildPlaylistLink(this.playlist)
-    if (!this.includeVideoInPlaylist) return url
 
-    return decoratePlaylistLink({ url, playlistPosition: this.playlistPosition })
+    return this.hooks.wrapFun(
+      decoratePlaylistLink,
+      { url, ...this.getPlaylistOptions() },
+      'video-watch',
+      'filter:share.video-playlist-url.build.params',
+      'filter:share.video-playlist-url.build.result'
+    )
   }
 
-  updateEmbedCode () {
-    if (this.playlist) this.playlistEmbedHTML = this.sanitizer.bypassSecurityTrustHtml(this.getPlaylistIframeCode())
+  getPlaylistEmbedUrl () {
+    return this.hooks.wrapFun(
+      decoratePlaylistLink,
+      { url: this.playlist.embedUrl, ...this.getPlaylistOptions() },
+      'video-watch',
+      'filter:share.video-playlist-embed-url.build.params',
+      'filter:share.video-playlist-embed-url.build.result'
+    )
+  }
 
-    if (this.video) this.videoEmbedHTML = this.sanitizer.bypassSecurityTrustHtml(this.getVideoIframeCode())
+  async getPlaylistEmbedCode (options: { responsive: boolean }) {
+    const { responsive } = options
+    return this.hooks.wrapFun(
+      buildVideoOrPlaylistEmbed,
+      {
+        embedUrl: await this.getPlaylistEmbedUrl(),
+        embedTitle: this.playlist.displayName,
+        responsive,
+        aspectRatio: this.video?.aspectRatio
+      },
+      'video-watch',
+      'filter:share.video-playlist-embed-code.build.params',
+      'filter:share.video-playlist-embed-code.build.result'
+    )
+  }
+
+  // ---------------------------------------------------------------------------
+
+  async onUpdate () {
+    if (this.playlist) {
+      this.playlistUrl = await this.getPlaylistUrl()
+      this.playlistEmbedUrl = await this.getPlaylistEmbedUrl()
+      this.playlistEmbedHTML = await this.getPlaylistEmbedCode({ responsive: this.customizations.responsive })
+      this.playlistEmbedSafeHTML = this.sanitizer.bypassSecurityTrustHtml(await this.getPlaylistEmbedCode({ responsive: false }))
+    }
+
+    if (this.video) {
+      this.videoUrl = await this.getVideoUrl()
+      this.videoEmbedUrl = await this.getVideoEmbedUrl()
+      this.videoEmbedHTML = await this.getVideoEmbedCode({ responsive: this.customizations.responsive })
+      this.videoEmbedSafeHTML = this.sanitizer.bypassSecurityTrustHtml(await this.getVideoEmbedCode({ responsive: false }))
+    }
   }
 
   notSecure () {
     return window.location.protocol === 'http:'
   }
 
-  isVideoInEmbedTab () {
+  isInVideoEmbedTab () {
     return this.activeVideoId === 'embed'
+  }
+
+  isInPlaylistEmbedTab () {
+    return this.activePlaylistId === 'embed'
   }
 
   isLocalVideo () {
@@ -157,15 +286,35 @@ export class VideoShareComponent {
     return this.playlist.privacy.id === VideoPlaylistPrivacy.PRIVATE
   }
 
+  isPasswordProtectedVideo () {
+    return this.video.privacy.id === VideoPrivacy.PASSWORD_PROTECTED
+  }
+
   private getPlaylistOptions (baseUrl?: string) {
     return {
       baseUrl,
 
-      playlistPosition: this.playlistPosition || undefined
+      playlistPosition: this.playlistPosition && this.customizations.includeVideoInPlaylist
+        ? this.playlistPosition
+        : undefined
     }
   }
 
-  private getVideoOptions () {
+  private getVideoOptions (forEmbed: boolean) {
+    const embedOptions = forEmbed
+      ? {
+        title: this.customizations.title,
+        warningTitle: this.customizations.warningTitle,
+        controlBar: this.customizations.controlBar,
+        peertubeLink: this.customizations.peertubeLink,
+
+        // If using default value, we don't need to specify it
+        p2p: this.customizations.embedP2P === this.server.getHTMLConfig().defaults.p2p.embed.enabled
+          ? undefined
+          : this.customizations.embedP2P
+      }
+      : {}
+
     return {
       startTime: this.customizations.startAtCheckbox ? this.customizations.startAt : undefined,
       stopTime: this.customizations.stopAtCheckbox ? this.customizations.stopAt : undefined,
@@ -176,10 +325,7 @@ export class VideoShareComponent {
       autoplay: this.customizations.autoplay,
       muted: this.customizations.muted,
 
-      title: this.customizations.title,
-      warningTitle: this.customizations.warningTitle,
-      controls: this.customizations.controls,
-      peertubeLink: this.customizations.peertubeLink
+      ...embedOptions
     }
   }
 }

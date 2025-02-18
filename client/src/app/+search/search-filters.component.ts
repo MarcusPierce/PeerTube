@@ -1,14 +1,18 @@
 import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core'
 import { ServerService } from '@app/core'
-import { AdvancedSearch } from '@app/shared/shared-search'
-import { HTMLServerConfig, VideoConstant } from '@shared/models'
+import { HTMLServerConfig, VideoConstant } from '@peertube/peertube-models'
+import { SelectTagsComponent } from '../shared/shared-forms/select/select-tags.component'
+import { NgIf, NgFor } from '@angular/common'
+import { FormsModule } from '@angular/forms'
+import { AdvancedSearch } from '@app/shared/shared-search/advanced-search.model'
 
 type FormOption = { id: string, label: string }
 
 @Component({
   selector: 'my-search-filters',
   styleUrls: [ './search-filters.component.scss' ],
-  templateUrl: './search-filters.component.html'
+  templateUrl: './search-filters.component.html',
+  imports: [ FormsModule, NgIf, NgFor, SelectTagsComponent ]
 })
 export class SearchFiltersComponent implements OnInit {
   @Input() advancedSearch: AdvancedSearch = new AdvancedSearch()
@@ -22,7 +26,6 @@ export class SearchFiltersComponent implements OnInit {
   publishedDateRanges: FormOption[] = []
   sorts: FormOption[] = []
   durationRanges: FormOption[] = []
-  videoType: FormOption[] = []
 
   publishedDateRange: string
   durationRange: string
@@ -51,17 +54,6 @@ export class SearchFiltersComponent implements OnInit {
       {
         id: 'last_365days',
         label: $localize`Last 365 days`
-      }
-    ]
-
-    this.videoType = [
-      {
-        id: 'vod',
-        label: $localize`VOD videos`
-      },
-      {
-        id: 'live',
-        label: $localize`Live videos`
       }
     ]
 
@@ -130,11 +122,11 @@ export class SearchFiltersComponent implements OnInit {
     this.onDurationOrPublishedUpdated()
   }
 
-  resetField (fieldName: string, value?: any) {
-    this.advancedSearch[fieldName] = value
+  resetField (fieldName: keyof AdvancedSearch, value?: any) {
+    (this.advancedSearch as any)[fieldName] = value
   }
 
-  resetLocalField (fieldName: string, value?: any) {
+  resetLocalField (fieldName: keyof SearchFiltersComponent, value?: any) {
     this[fieldName] = value
     this.onDurationOrPublishedUpdated()
   }
@@ -150,11 +142,11 @@ export class SearchFiltersComponent implements OnInit {
   private loadOriginallyPublishedAtYears () {
     this.originallyPublishedStartYear = this.advancedSearch.originallyPublishedStartDate
       ? new Date(this.advancedSearch.originallyPublishedStartDate).getFullYear().toString()
-      : null
+      : undefined
 
     this.originallyPublishedEndYear = this.advancedSearch.originallyPublishedEndDate
       ? new Date(this.advancedSearch.originallyPublishedEndDate).getFullYear().toString()
-      : null
+      : undefined
   }
 
   private loadFromDurationRange () {
@@ -201,7 +193,7 @@ export class SearchFiltersComponent implements OnInit {
 
       this.advancedSearch.originallyPublishedStartDate = start.toISOString()
     } else {
-      this.advancedSearch.originallyPublishedStartDate = null
+      this.advancedSearch.originallyPublishedStartDate = undefined
     }
 
     if (this.originallyPublishedEndYear) {
@@ -211,12 +203,16 @@ export class SearchFiltersComponent implements OnInit {
 
       this.advancedSearch.originallyPublishedEndDate = end.toISOString()
     } else {
-      this.advancedSearch.originallyPublishedEndDate = null
+      this.advancedSearch.originallyPublishedEndDate = undefined
     }
   }
 
   private updateModelFromDurationRange () {
-    if (!this.durationRange) return
+    if (!this.durationRange) {
+      this.advancedSearch.durationMin = undefined
+      this.advancedSearch.durationMax = undefined
+      return
+    }
 
     const fourMinutes = 60 * 4
     const tenMinutes = 60 * 10

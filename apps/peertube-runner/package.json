@@ -1,0 +1,18 @@
+{
+  "name": "@peertube/peertube-runner",
+  "version": "0.0.23",
+  "type": "module",
+  "main": "dist/peertube-runner.js",
+  "bin": "dist/peertube-runner.js",
+  "license": "AGPL-3.0",
+  "dependencies": {},
+  "devDependencies": {
+    "@iarna/toml": "^2.2.5",
+    "@peertube/net-ipc": "^2.2.0",
+    "@types/follow-redirects": "1.14.4",
+    "env-paths": "^3.0.0",
+    "follow-redirects": "^1.15.5",
+    "pino": "^9.2.0",
+    "pino-pretty": "^11.2.1"
+  }
+}

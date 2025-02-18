@@ -4,6 +4,11 @@ export interface VideoCaptionEdit {
     label?: string
   }
 
-  action?: 'CREATE' | 'REMOVE'
+  automaticallyGenerated?: boolean
+
+  action?: 'CREATE' | 'REMOVE' | 'UPDATE'
   captionfile?: any
+  updatedAt?: string
 }
+
+export type VideoCaptionWithPathEdit = VideoCaptionEdit & { fileUrl?: string }

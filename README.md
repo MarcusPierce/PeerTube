@@ -7,8 +7,8 @@
 <p align=center>
   <strong><a href="https://joinpeertube.org">Website</a></strong>
   | <strong><a href="https://joinpeertube.org/instances">Join an instance</a></strong>
-  | <strong><a href="#package-create-your-own-instance">Create an instance</a></strong>
-  | <strong><a href="#contact">Chat with us</a></strong>
+  | <strong><a href="https://github.com/Chocobozzz/PeerTube/blob/develop/README.md#package-create-your-own-instance">Create an instance</a></strong>
+  | <strong><a href="https://github.com/Chocobozzz/PeerTube/blob/develop/README.md#contact">Chat with us</a></strong>
   | <strong><a href="https://framasoft.org/en/#soutenir">Donate</a></strong>
 </p>
 
@@ -26,33 +26,19 @@ Be part of a network of multiple small federated, interoperable video hosting pr
   </a>
 </p>
 
-<p align="center">
-  <strong>Client</strong>
+<div align="center">
+  <a href="https://github.com/Chocobozzz/PeerTube/actions?query=workflow%3A%22Test%22+branch%3Adevelop">
+    <img src="https://github.com/Chocobozzz/PeerTube/workflows/Test/badge.svg" alt="GitHub Test Status">
+  </a>
 
-  <br />
-
-  <a href="https://automate.browserstack.com/public-build/ZEZqamJQUXFQd1l3cFp3QmxLSVVwdjBGZjNGc3J2M09INFpka296em9VYz0tLUowWVdoemxkY1hBOU9aZzNlY1htZ3c9PQ==--68e0184ce76481d36559d681d9cddc68235ff536">
-    <img src="https://automate.browserstack.com/badge.svg?badge_key=ZEZqamJQUXFQd1l3cFp3QmxLSVVwdjBGZjNGc3J2M09INFpka296em9VYz0tLUowWVdoemxkY1hBOU9aZzNlY1htZ3c9PQ==--68e0184ce76481d36559d681d9cddc68235ff536"/>
+  <a href="https://automate.browserstack.com/public-build/d0ZMeGpSUFRjaUpDNnN3NUdKY1l2TnNpTGVJaUI0bm9hYkNxMTRtQ1lHTT0tLVZQa2crbFB1c2RDZUl1Y1Blck02SFE9PQ==--5f956d6857c50e06a0b7b1fe405fb93d0f2d0e11%">
+    <img src="https://automate.browserstack.com/badge.svg?badge_key=d0ZMeGpSUFRjaUpDNnN3NUdKY1l2TnNpTGVJaUI0bm9hYkNxMTRtQ1lHTT0tLVZQa2crbFB1c2RDZUl1Y1Blck02SFE9PQ==--5f956d6857c50e06a0b7b1fe405fb93d0f2d0e11%" alt="BrowserStack Status">
   </a>
 
   <a href="https://weblate.framasoft.org/projects/peertube/angular/">
-    <img src="https://weblate.framasoft.org/widgets/peertube/-/angular/svg-badge.svg"/>
+    <img src="https://weblate.framasoft.org/widgets/peertube/-/angular/svg-badge.svg" alt="Weblate Status">
   </a>
-</p>
-
-<p align="center">
-  <strong>Server</strong>
-
-  <br />
-
-  <a href="https://github.com/Chocobozzz/PeerTube/actions?query=workflow%3A%22Test+Suite%22+branch%3Adevelop">
-    <img alt="test suite status" src="https://github.com/Chocobozzz/PeerTube/workflows/Test%20Suite/badge.svg" />
-  </a>
-
-  <a href="https://standardjs.com/">
-    <img src="https://img.shields.io/badge/code%20style-standard-brightgreen.svg" alt="JavaScript Style Guide" />
-  </a>
-</p>
+</div>
 
 <br />
 
@@ -116,10 +102,10 @@ Be it as a user or an instance administrator, you can decide what your experienc
 
 <h3 align="right">Communities that help each other</h3>
 <p align="right">
-In addition to visitors using WebTorrent to share the load among them, instances can help each other by caching one another's videos. This way even small instances have a way to show content to a wider audience, as they will be shouldered by friend instances (more about that in our <a href="https://docs.joinpeertube.org/contribute-architecture?id=redundancy-between-instances">redundancy guide</a>).
+In addition to visitors using P2P with WebRTC to share the load among them, instances can help each other by caching one another's videos. This way even small instances have a way to show content to a wider audience, as they will be shouldered by friend instances (more about that in our <a href="https://docs.joinpeertube.org/contribute/architecture#redundancy-between-instances">redundancy guide</a>).
 </p>
 <p align="right">
-Content creators can get help from their viewers in the simplest way possible: a support button showing a message linking to their donation accounts or really anything else. No more pay-per-view and advertisements that hurt visitors and <strike>incentivize</strike> alter creativity (more about that in our <a href="https://github.com/Chocobozzz/PeerTube/blob/develop/FAQ.md">FAQ</a>).
+Content creators can get help from their viewers in the simplest way possible: a support button showing a message linking to their donation accounts or really anything else. No more pay-per-view and advertisements that hurt visitors and alter creativity (more about that in our <a href="https://github.com/Chocobozzz/PeerTube/blob/develop/FAQ.md">FAQ</a>).
 </p>
 
 
@@ -130,7 +116,7 @@ Content creators can get help from their viewers in the simplest way possible: a
 You don't need to be a programmer to help!
 
 You can give us your feedback, report bugs, help us translate PeerTube, write documentation, and more. Check out the [contributing
-guide](https://github.com/Chocobozzz/PeerTube/blob/develop/.github/CONTRIBUTING.md) to know how, it takes less than 2 minutes to get started. :wink:
+guide](https://docs.joinpeertube.org/contribute/getting-started) to know how, it takes less than 2 minutes to get started. :wink:
 
 You can also join the cheerful bunch that makes our community:
 
@@ -147,7 +133,7 @@ Feel free to reach out if you have any questions or ideas! :speech_balloon:
 
 See the [production guide](https://github.com/Chocobozzz/PeerTube/blob/develop/support/doc/production.md), which is the recommended way to install or upgrade PeerTube. For hardware requirements, see [Should I have a big server to run PeerTube?](https://joinpeertube.org/faq#should-i-have-a-big-server-to-run-peertube) in the FAQ.
 
-See the [community packages](https://docs.joinpeertube.org/install-unofficial), which cover various platforms (including [YunoHost](https://install-app.yunohost.org/?app=peertube) and [Docker](https://github.com/Chocobozzz/PeerTube/blob/develop/support/doc/docker.md)).
+See the [community packages](https://docs.joinpeertube.org/install/unofficial), which cover various platforms (including [YunoHost](https://install-app.yunohost.org/?app=peertube) and [Docker](https://github.com/Chocobozzz/PeerTube/blob/develop/support/doc/docker.md)).
 
 :book: Documentation
 ----------------------------------------------------------------
@@ -156,31 +142,37 @@ If you have a question, please try to find the answer in the [FAQ](https://joinp
 
 ### User documentation
 
-See the [user documentation](https://docs.joinpeertube.org/use-setup-account).
+See the [user documentation](https://docs.joinpeertube.org/use/setup-account).
 
 ### Admin documentation
 
 See [how to create your own instance](https://github.com/Chocobozzz/PeerTube/blob/develop/README.md#package-create-your-own-instance).
 
-See the more general [admin documentation](https://docs.joinpeertube.org/admin-following-instances).
+See the more general [admin documentation](https://docs.joinpeertube.org/admin/following-instances).
 
 ### Tools documentation
 
-Learn how to import/upload videos from CLI or admin your PeerTube instance with the [tools documentation](https://docs.joinpeertube.org/maintain-tools).
+Learn how to import/upload videos from CLI or admin your PeerTube instance with the [tools documentation](https://docs.joinpeertube.org/maintain/tools).
 
 ### Technical documentation
 
-See the [architecture blueprint](https://docs.joinpeertube.org/contribute-architecture) for a more detailed explanation of the architectural choices.
+See the [architecture blueprint](https://docs.joinpeertube.org/contribute/architecture) for a more detailed explanation of the architectural choices.
 
 See our REST API documentation:
   * OpenAPI 3.0.0 schema: [/support/doc/api/openapi.yaml](https://github.com/Chocobozzz/PeerTube/blob/develop/support/doc/api/openapi.yaml)
   * Spec explorer: [docs.joinpeertube.org/api-rest-reference.html](https://docs.joinpeertube.org/api-rest-reference.html)
 
-See our [ActivityPub documentation](https://docs.joinpeertube.org/api-activitypub).
+See our [ActivityPub documentation](https://docs.joinpeertube.org/api/activitypub).
 
 ## License
 
-Copyright (C) 2015-2021 PeerTube Contributors (see [CREDITS.md](CREDITS.md))
+### Logo
+
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), by [Framasoft](https://framasoft.org)
+
+### Code
+
+Copyright (C) 2015-2024 PeerTube Contributors (see [CREDITS.md](/CREDITS.md))
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as published

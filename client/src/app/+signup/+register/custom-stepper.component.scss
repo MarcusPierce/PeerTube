@@ -2,76 +2,119 @@
 @use '_variables' as *;
 @use '_mixins' as *;
 
-$grey-color: #9CA3AB;
-$index-block-height: 32px;
-
-.container {
-  @include padding-left(0);
-  @include padding-right(0);
-  max-width: unset !important;
-}
+$index-block-height: 40px;
 
 header {
+  width: 100%;
+  background-color: pvar(--bg-secondary-400);
+  border-radius: 5px;
+
+  @include rfs(2rem, margin-bottom);
+  @include rfs(2rem, padding);
+}
+
+.header-steps {
+  max-width: 800px;
   display: flex;
   justify-content: space-between;
-  font-size: 15px;
-  margin-bottom: 30px;
+  margin: auto;
 
-  .step-info {
-    color: $grey-color;
+  // Useful on small screens
+  padding: 0 20px;
+}
+
+.step-index {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: $index-block-height;
+  height: $index-block-height;
+  border-radius: $index-block-height;
+  border: 1px solid pvar(--bg-secondary-500);
+  margin-bottom: 10px;
+  font-size: 24px;
+  position: relative;
+
+  .completed-icon {
+    $size: 14px;
+
+    width: $size;
+    height: $size;
+    border-radius: $size;
+    background-color: pvar(--bg);
+    position: absolute;
+    bottom: 0;
+    right: 0;
     display: flex;
-    flex-direction: column;
+    justify-content: center;
     align-items: center;
-    width: $index-block-height;
+    // Better than border color for aliasing
+    box-shadow: 0 0 0 1px pvar(--bg-secondary-500);
+    overflow: hidden;
 
-    &:not(.c-hand) {
-      cursor: default;
-    }
-
-    .step-index {
+    my-global-icon {
       display: flex;
-      justify-content: center;
-      align-items: center;
-      width: $index-block-height;
-      height: $index-block-height;
-      border-radius: 100px;
-      border: 2px solid $grey-color;
-      margin-bottom: 10px;
+      width: 12px;
+      height: 12px;
+      color: pvar(--green);
+    }
+  }
+}
 
-      my-global-icon {
-        @include apply-svg-color(pvar(--mainBackgroundColor));
+.step-label {
+  width: max-content;
+  font-size: 18px;
+}
 
-        width: 22px;
-        height: 22px;
-      }
+.step-index,
+.step-label {
+  color: pvar(--fg-200);
+}
+
+.step-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: $index-block-height;
+
+  &.active,
+  &.completed {
+    .step-index {
+      border-color: pvar(--bg-secondary-550);
+      background-color: pvar(--bg-secondary-550);
+      color: pvar(--fg-400);
     }
 
     .step-label {
-      width: max-content;
-    }
-
-    &.active,
-    &.completed {
-      .step-index {
-        border-color: pvar(--mainColor);
-        background-color: pvar(--mainColor);
-        color: pvar(--mainBackgroundColor);
-      }
-
-      .step-label {
-        color: pvar(--mainColor);
-      }
-    }
-
-    &.completed {
-      cursor: pointer;
+      color: pvar(--fg-400);
     }
   }
 
-  .connector {
-    flex: auto;
-    margin: math.div($index-block-height, 2) 10px 0 10px;
-    height: 2px;
-    background-color: $grey-color;
+  &.active {
+    .step-label {
+      font-weight: $font-bold;
+    }
+  }
+}
+
+.connector {
+  flex: auto;
+  margin: math.div($index-block-height, 2) 10px 0 10px;
+  height: 2px;
+  background-color: pvar(--secondary-icon-color);
+  opacity: 0.3;
+}
+
+@media screen and (min-width: $small-view) {
+  .margin-content {
+    max-width: 1000px;
+    margin: auto;
+  }
+}
+
+@media screen and (max-width: $small-view) {
+  .step-label {
+    width: auto;
+    text-align: center;
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core'
 import { FormGroup } from '@angular/forms'
+import { formatICU } from '@app/helpers'
 
 export type ResolutionOption = {
   id: string
@@ -10,12 +11,13 @@ export type ResolutionOption = {
 @Injectable()
 export class EditConfigurationService {
 
-  getVODResolutions () {
+  getTranscodingResolutions () {
     return [
       {
         id: '0p',
         label: $localize`Audio-only`,
-        description: $localize`A <code>.mp4</code> that keeps the original audio track, with no video`
+        // eslint-disable-next-line max-len
+        description: $localize`"Split audio and video" must be enabled for the PeerTube player to propose an "Audio only" resolution to users`
       },
       {
         id: '144p',
@@ -52,12 +54,24 @@ export class EditConfigurationService {
     ]
   }
 
-  getLiveResolutions () {
-    return this.getVODResolutions().filter(r => r.id !== '0p')
-  }
-
   isTranscodingEnabled (form: FormGroup) {
     return form.value['transcoding']['enabled'] === true
+  }
+
+  isHLSEnabled (form: FormGroup) {
+    return form.value['transcoding']['hls']['enabled'] === true
+  }
+
+  isRemoteRunnerVODEnabled (form: FormGroup) {
+    return form.value['transcoding']['remoteRunners']['enabled'] === true
+  }
+
+  isRemoteRunnerLiveEnabled (form: FormGroup) {
+    return form.value['live']['transcoding']['remoteRunners']['enabled'] === true
+  }
+
+  isStudioEnabled (form: FormGroup) {
+    return form.value['videoStudio']['enabled'] === true
   }
 
   isLiveEnabled (form: FormGroup) {
@@ -86,9 +100,7 @@ export class EditConfigurationService {
     return {
       value,
       atMost: noneOnAuto, // auto switches everything to a least estimation since ffmpeg will take as many threads as possible
-      unit: value > 1
-        ? $localize`threads`
-        : $localize`thread`
+      unit: formatICU($localize`{value, plural, =1 {thread} other {threads}}`, { value })
     }
   }
 }

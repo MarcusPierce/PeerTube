@@ -1,8 +1,7 @@
-@use '_mixins' as *;
 @use '_variables' as *;
+@use '_mixins' as *;
 
 .modal-body {
-  font-size: 15px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -14,17 +13,16 @@
 }
 
 .mascot {
-  @include margin-right(2rem);
-
   display: block;
   width: 170px;
   height: 220px;
+
+  @include margin-right(2rem);
 }
 
 .subtitle {
   font-weight: $font-semibold;
   margin-bottom: 10px;
-  font-size: 16px;
 }
 
 li {

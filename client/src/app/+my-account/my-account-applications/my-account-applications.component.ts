@@ -1,14 +1,15 @@
 import { Component, OnInit } from '@angular/core'
 import { AuthService, ConfirmService, Notifier, ScopedTokensService } from '@app/core'
-import { VideoService } from '@app/shared/shared-main'
-import { FeedFormat } from '@shared/models'
-import { ScopedToken } from '@shared/models/users/user-scoped-token'
+import { VideoService } from '@app/shared/shared-main/video/video.service'
+import { FeedFormat, ScopedToken } from '@peertube/peertube-models'
 import { environment } from '../../../environments/environment'
+import { InputTextComponent } from '../../shared/shared-forms/input-text.component'
 
 @Component({
   selector: 'my-account-applications',
   templateUrl: './my-account-applications.component.html',
-  styleUrls: [ './my-account-applications.component.scss' ]
+  styleUrls: [ './my-account-applications.component.scss' ],
+  imports: [ InputTextComponent ]
 })
 export class MyAccountApplicationsComponent implements OnInit {
   feedUrl: string
@@ -26,6 +27,7 @@ export class MyAccountApplicationsComponent implements OnInit {
 
   ngOnInit () {
     this.feedUrl = this.baseURL
+
     this.scopedTokensService.getScopedTokens()
       .subscribe({
         next: tokens => this.regenApplications(tokens),

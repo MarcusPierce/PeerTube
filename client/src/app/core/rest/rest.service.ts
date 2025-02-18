@@ -1,22 +1,24 @@
-import * as debug from 'debug'
+import debug from 'debug'
 import { SortMeta } from 'primeng/api'
 import { HttpParams } from '@angular/common/http'
 import { Injectable } from '@angular/core'
 import { ComponentPaginationLight } from './component-pagination.model'
 import { RestPagination } from './rest-pagination'
 
-const logger = debug('peertube:rest')
+const debugLogger = debug('peertube:rest')
+
+type ParseQueryHandlerResult = string | number | boolean | string[] | number[] | boolean[]
 
 interface QueryStringFilterPrefixes {
   [key: string]: {
     prefix: string
-    handler?: (v: string) => string | number | boolean
+    handler?: (v: string) => ParseQueryHandlerResult
     multiple?: boolean
     isBoolean?: boolean
   }
 }
 
-type ParseQueryStringFilters <K extends keyof any> = Partial<Record<K, string | number | boolean | (string | number | boolean)[]>>
+type ParseQueryStringFilters <K extends keyof any> = Partial<Record<K, ParseQueryHandlerResult | ParseQueryHandlerResult[]>>
 type ParseQueryStringFiltersResult <K extends keyof any> = ParseQueryStringFilters<K> & { search?: string }
 
 @Injectable()
@@ -31,19 +33,19 @@ export class RestService {
     }
 
     if (sort !== undefined) {
-      let sortString = ''
-
-      if (typeof sort === 'string') {
-        sortString = sort
-      } else {
-        const sortPrefix = sort.order === 1 ? '' : '-'
-        sortString = sortPrefix + sort.field
-      }
-
-      newParams = newParams.set('sort', sortString)
+      newParams = newParams.set('sort', this.buildSortString(sort))
     }
 
     return newParams
+  }
+
+  buildSortString (sort: SortMeta | string) {
+    if (typeof sort === 'string') {
+      return sort
+    }
+
+    const sortPrefix = sort.order === 1 ? '' : '-'
+    return sortPrefix + sort.field
   }
 
   addArrayParams (params: HttpParams, name: string, values: (string | number)[]) {
@@ -70,10 +72,11 @@ export class RestService {
   }
 
   componentToRestPagination (componentPagination: ComponentPaginationLight): RestPagination {
-    const start: number = (componentPagination.currentPage - 1) * componentPagination.itemsPerPage
-    const count: number = componentPagination.itemsPerPage
+    const { currentPage, itemsPerPage, itemsRemoved = 0 } = componentPagination
 
-    return { start, count }
+    const start = Math.max(0, (currentPage - 1) * itemsPerPage - itemsRemoved)
+
+    return { start, count: itemsPerPage }
   }
 
   /*
@@ -88,7 +91,7 @@ export class RestService {
     const prefixeStrings = Object.values(prefixes)
                                  .map(p => p.prefix)
 
-    logger(`Built tokens "${tokens.join(', ')}" for prefixes "${prefixeStrings.join(', ')}"`)
+    debugLogger(`Built tokens "${tokens.join(', ')}" for prefixes "${prefixeStrings.join(', ')}"`)
 
     // Search is the querystring minus defined filters
     const searchTokens = tokens.filter(t => {
@@ -127,7 +130,7 @@ export class RestService {
 
     const search = searchTokens.join(' ') || undefined
 
-    logger('Built search: ' + search, additionalFilters)
+    debugLogger('Built search: ' + search, additionalFilters)
 
     return {
       search,

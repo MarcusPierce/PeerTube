@@ -1,43 +1,71 @@
-import { Hotkey, HotkeysService } from 'angular2-hotkeys'
-import { forkJoin, delay } from 'rxjs'
+import { forkJoin } from 'rxjs'
 import { filter, first, map } from 'rxjs/operators'
-import { DOCUMENT, getLocaleDirection, PlatformLocation } from '@angular/common'
-import { AfterViewInit, Component, Inject, LOCALE_ID, OnInit, ViewChild } from '@angular/core'
+import { DOCUMENT, getLocaleDirection, NgClass, NgIf, PlatformLocation } from '@angular/common'
+import { AfterViewInit, Component, Inject, LOCALE_ID, OnDestroy, OnInit, ViewChild } from '@angular/core'
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser'
-import { Event, GuardsCheckStart, RouteConfigLoadEnd, RouteConfigLoadStart, Router } from '@angular/router'
+import { Event, GuardsCheckStart, RouteConfigLoadEnd, RouteConfigLoadStart, Router, RouterLink, RouterOutlet } from '@angular/router'
 import {
   AuthService,
+  Hotkey,
+  HotkeysService,
   MarkdownService,
   PeerTubeRouterService,
-  RedirectService,
   ScreenService,
   ScrollService,
   ServerService,
-  ThemeService,
-  User
+  User,
+  UserLocalStorageService
 } from '@app/core'
 import { HooksService } from '@app/core/plugins/hooks.service'
 import { PluginService } from '@app/core/plugins/plugin.service'
 import { AccountSetupWarningModalComponent } from '@app/modal/account-setup-warning-modal.component'
+import { AdminWelcomeModalComponent } from '@app/modal/admin-welcome-modal.component'
 import { CustomModalComponent } from '@app/modal/custom-modal.component'
 import { InstanceConfigWarningModalComponent } from '@app/modal/instance-config-warning-modal.component'
-import { AdminWelcomeModalComponent } from '@app/modal/admin-welcome-modal.component'
 import { NgbConfig, NgbModal } from '@ng-bootstrap/ng-bootstrap'
-import { LoadingBarService } from '@ngx-loading-bar/core'
+import { LoadingBarModule, LoadingBarService } from '@ngx-loading-bar/core'
+import { getShortLocale } from '@peertube/peertube-core-utils'
+import { BroadcastMessageLevel, HTMLServerConfig, UserRole } from '@peertube/peertube-models'
+import { logger } from '@root-helpers/logger'
 import { peertubeLocalStorage } from '@root-helpers/peertube-web-storage'
-import { getShortLocale } from '@shared/core-utils/i18n'
-import { BroadcastMessageLevel, HTMLServerConfig, UserRole } from '@shared/models'
+import { SharedModule } from 'primeng/api'
+import { ToastModule } from 'primeng/toast'
 import { MenuService } from './core/menu/menu.service'
+import { HeaderComponent } from './header/header.component'
 import { POP_STATE_MODAL_DISMISS } from './helpers'
-import { InstanceService } from './shared/shared-instance'
+import { HotkeysCheatSheetComponent } from './hotkeys/hotkeys-cheat-sheet.component'
+import { MenuComponent } from './menu/menu.component'
+import { ConfirmComponent } from './modal/confirm.component'
+import { GlobalIconComponent, GlobalIconName } from './shared/shared-icons/global-icon.component'
+import { ButtonComponent } from './shared/shared-main/buttons/button.component'
+import { InstanceService } from './shared/shared-main/instance/instance.service'
 
 @Component({
   selector: 'my-app',
   templateUrl: './app.component.html',
-  styleUrls: [ './app.component.scss' ]
+  styleUrls: [ './app.component.scss' ],
+  imports: [
+    NgIf,
+    HotkeysCheatSheetComponent,
+    NgClass,
+    RouterLink,
+    HeaderComponent,
+    MenuComponent,
+    GlobalIconComponent,
+    RouterOutlet,
+    LoadingBarModule,
+    ConfirmComponent,
+    ToastModule,
+    SharedModule,
+    AccountSetupWarningModalComponent,
+    AdminWelcomeModalComponent,
+    InstanceConfigWarningModalComponent,
+    CustomModalComponent,
+    ButtonComponent
+  ]
 })
-export class AppComponent implements OnInit, AfterViewInit {
-  private static BROADCAST_MESSAGE_KEY = 'app-broadcast-message-dismissed'
+export class AppComponent implements OnInit, AfterViewInit, OnDestroy {
+  private static LS_BROADCAST_MESSAGE = 'app-broadcast-message-dismissed'
 
   @ViewChild('accountSetupWarningModal') accountSetupWarningModal: AccountSetupWarningModalComponent
   @ViewChild('adminWelcomeModal') adminWelcomeModal: AdminWelcomeModalComponent
@@ -46,8 +74,10 @@ export class AppComponent implements OnInit, AfterViewInit {
 
   customCSS: SafeHtml
   broadcastMessage: { message: string, dismissable: boolean, class: string } | null = null
+  hotkeysModalOpened = false
 
   private serverConfig: HTMLServerConfig
+  private userLoaded = false
 
   constructor (
     @Inject(DOCUMENT) private document: Document,
@@ -59,10 +89,8 @@ export class AppComponent implements OnInit, AfterViewInit {
     private pluginService: PluginService,
     private instanceService: InstanceService,
     private domSanitizer: DomSanitizer,
-    private redirectService: RedirectService,
     private screenService: ScreenService,
     private hotkeysService: HotkeysService,
-    private themeService: ThemeService,
     private hooks: HooksService,
     private location: PlatformLocation,
     private modalService: NgbModal,
@@ -70,26 +98,20 @@ export class AppComponent implements OnInit, AfterViewInit {
     private ngbConfig: NgbConfig,
     private loadingBar: LoadingBarService,
     private scrollService: ScrollService,
+    private userLocalStorage: UserLocalStorageService,
     public menu: MenuService
   ) {
     this.ngbConfig.animation = false
   }
 
-  get instanceName () {
-    return this.serverConfig.instance.name
-  }
-
-  goToDefaultRoute () {
-    return this.router.navigateByUrl(this.redirectService.getDefaultRoute())
-  }
-
   ngOnInit () {
     document.getElementById('incompatible-browser').className += ' browser-ok'
+
+    this.loadUser()
 
     this.serverConfig = this.serverService.getHTMLConfig()
 
     this.hooks.runAction('action:application.init', 'common')
-    this.themeService.initialize()
 
     this.authService.loadClientCredentials()
 
@@ -119,32 +141,61 @@ export class AppComponent implements OnInit, AfterViewInit {
 
     this.location.onPopState(() => this.modalService.dismissAll(POP_STATE_MODAL_DISMISS))
 
-    this.openModalsIfNeeded()
+    this.listenUserChangeForModals()
 
     this.document.documentElement.lang = getShortLocale(this.localeId)
     this.document.documentElement.dir = getLocaleDirection(this.localeId)
+
+    this.pluginService.addAction('application:increment-loader', () => {
+      this.loadingBar.useRef('plugins').start()
+
+      return Promise.resolve()
+    })
+    this.pluginService.addAction('application:decrement-loader', () => {
+      this.loadingBar.useRef('plugins').complete()
+
+      return Promise.resolve()
+    })
   }
 
   ngAfterViewInit () {
     this.pluginService.initializeCustomModal(this.customModal)
   }
 
-  getToggleTitle () {
-    if (this.menu.isDisplayed()) return $localize`Close the left menu`
-
-    return $localize`Open the left menu`
+  ngOnDestroy () {
+    this.pluginService.removeAction('application:increment-loader')
+    this.pluginService.removeAction('application:decrement-loader')
   }
+
+  // ---------------------------------------------------------------------------
 
   isUserLoggedIn () {
     return this.authService.isLoggedIn()
   }
 
   hideBroadcastMessage () {
-    peertubeLocalStorage.setItem(AppComponent.BROADCAST_MESSAGE_KEY, this.serverConfig.broadcastMessage.message)
+    peertubeLocalStorage.setItem(AppComponent.LS_BROADCAST_MESSAGE, this.serverConfig.broadcastMessage.message)
 
     this.broadcastMessage = null
     this.screenService.isBroadcastMessageDisplayed = false
   }
+
+  // ---------------------------------------------------------------------------
+
+  getNotificationIcon (message: { severity: 'success' | 'error' | 'info' }): GlobalIconName {
+    switch (message.severity) {
+      case 'error':
+        return 'cross'
+
+      case 'success':
+        return 'tick'
+
+      case 'info':
+        return 'help'
+    }
+  }
+
+  // ---------------------------------------------------------------------------
 
   private initRouteEvents () {
     const eventsObs = this.router.events
@@ -158,7 +209,7 @@ export class AppComponent implements OnInit, AfterViewInit {
     eventsObs.pipe(
       filter((e: Event): e is GuardsCheckStart => e instanceof GuardsCheckStart),
       filter(() => this.screenService.isInSmallView() || this.screenService.isInTouchScreen())
-    ).subscribe(() => this.menu.setMenuDisplay(false)) // User clicked on a link in the menu, change the page
+    ).subscribe(() => this.menu.setMenuCollapsed(true)) // User clicked on a link in the menu, change the page
 
     // Handle lazy loaded module
     eventsObs.pipe(
@@ -178,7 +229,7 @@ export class AppComponent implements OnInit, AfterViewInit {
 
     if (messageConfig.enabled) {
       // Already dismissed this message?
-      if (messageConfig.dismissable && localStorage.getItem(AppComponent.BROADCAST_MESSAGE_KEY) === messageConfig.message) {
+      if (messageConfig.dismissable && localStorage.getItem(AppComponent.LS_BROADCAST_MESSAGE) === messageConfig.message) {
         return
       }
 
@@ -188,8 +239,13 @@ export class AppComponent implements OnInit, AfterViewInit {
         error: 'alert-danger'
       }
 
+      const root = document.createElement('div')
+      root.innerHTML = await this.markdownService.markdownToUnsafeHTML({ markdown: messageConfig.message })
+      // Use alert-link class on links since there will be in an alert block
+      root.querySelectorAll('a').forEach(a => a.className += ' alert-link')
+
       this.broadcastMessage = {
-        message: await this.markdownService.unsafeMarkdownToHTML(messageConfig.message, true),
+        message: root.innerHTML,
         dismissable: messageConfig.dismissable,
         class: classes[messageConfig.level]
       }
@@ -203,9 +259,9 @@ export class AppComponent implements OnInit, AfterViewInit {
     if (this.serverConfig.instance.customizations.javascript) {
       try {
         /* eslint-disable no-eval */
-        eval(this.serverConfig.instance.customizations.javascript)
+        window.eval(this.serverConfig.instance.customizations.javascript)
       } catch (err) {
-        console.error('Cannot eval custom JavaScript.', err)
+        logger.error('Cannot eval custom JavaScript.', err)
       }
     }
   }
@@ -221,29 +277,40 @@ export class AppComponent implements OnInit, AfterViewInit {
     }
   }
 
-  private openModalsIfNeeded () {
-    const userSub = this.authService.userInformationLoaded
-        .pipe(
-          delay(0), // Wait for modals creations
-          map(() => this.authService.getUser())
-        )
+  private listenUserChangeForModals () {
+    this.authService.userInformationLoaded
+        .pipe(map(() => this.authService.getUser()))
+        .subscribe(user => {
+          this.userLoaded = true
+          this.openModalsIfNeeded(user)
+        })
+  }
 
-    // Admin modal
-    userSub.pipe(
-      filter(user => user.role === UserRole.ADMINISTRATOR)
-    ).subscribe(user => this.openAdminModalsIfNeeded(user))
+  onModalCreated () {
+    const user = this.authService.getUser()
+    if (!user) return
 
-    // Account modal
-    userSub.pipe(
-      filter(user => user.role !== UserRole.ADMINISTRATOR)
-    ).subscribe(user => this.openAccountModalsIfNeeded(user))
+    setTimeout(() => this.openModalsIfNeeded(user))
+  }
+
+  private openModalsIfNeeded (user: User) {
+    if (!this.userLoaded) return
+
+    if (user.role.id === UserRole.ADMINISTRATOR) {
+      this.openAdminModalsIfNeeded(user)
+    } else {
+      this.openAccountModalsIfNeeded(user)
+    }
   }
 
   private openAdminModalsIfNeeded (user: User) {
+    if (!this.adminWelcomeModal) return
+
     if (this.adminWelcomeModal.shouldOpen(user)) {
       return this.adminWelcomeModal.show()
     }
 
+    if (!this.instanceConfigWarningModal) return
     if (!this.instanceConfigWarningModal.shouldOpenByUser(user)) return
 
     forkJoin([
@@ -257,47 +324,58 @@ export class AppComponent implements OnInit, AfterViewInit {
   }
 
   private openAccountModalsIfNeeded (user: User) {
+    if (!this.accountSetupWarningModal) return
+
     if (this.accountSetupWarningModal.shouldOpen(user)) {
       this.accountSetupWarningModal.show(user)
     }
   }
 
+  // ---------------------------------------------------------------------------
+
   private initHotkeys () {
     this.hotkeysService.add([
-      new Hotkey([ '/', 's' ], (event: KeyboardEvent): boolean => {
+      new Hotkey([ 'Shift+/', 's' ], () => {
         document.getElementById('search-video').focus()
         return false
-      }, undefined, $localize`Focus the search bar`),
+      }, $localize`Focus the search bar`),
 
-      new Hotkey('b', (event: KeyboardEvent): boolean => {
+      new Hotkey('b', () => {
         this.menu.toggleMenu()
         return false
-      }, undefined, $localize`Toggle the left menu`),
+      }, $localize`Toggle the left menu`),
 
-      new Hotkey('g o', (event: KeyboardEvent): boolean => {
+      new Hotkey('g o', () => {
         this.router.navigate([ '/videos/overview' ])
         return false
-      }, undefined, $localize`Go to the discover videos page`),
+      }, $localize`Go to the "Discover videos" page`),
 
-      new Hotkey('g t', (event: KeyboardEvent): boolean => {
-        this.router.navigate([ '/videos/trending' ])
+      new Hotkey('g v', () => {
+        this.router.navigate([ '/videos/browse' ])
         return false
-      }, undefined, $localize`Go to the trending videos page`),
+      }, $localize`Go to the "Browse videos" page`),
 
-      new Hotkey('g r', (event: KeyboardEvent): boolean => {
-        this.router.navigate([ '/videos/recently-added' ])
-        return false
-      }, undefined, $localize`Go to the recently added videos page`),
-
-      new Hotkey('g l', (event: KeyboardEvent): boolean => {
-        this.router.navigate([ '/videos/local' ])
-        return false
-      }, undefined, $localize`Go to the local videos page`),
-
-      new Hotkey('g u', (event: KeyboardEvent): boolean => {
+      new Hotkey('g u', () => {
         this.router.navigate([ '/videos/upload' ])
         return false
-      }, undefined, $localize`Go to the videos upload page`)
+      }, $localize`Go to the "Publish video" page`)
     ])
+  }
+
+  onHotkeysModalStateChange (opened: boolean) {
+    this.hotkeysModalOpened = opened
+  }
+
+  // ---------------------------------------------------------------------------
+
+  private loadUser () {
+    const tokens = this.userLocalStorage.getTokens()
+    if (!tokens) return
+
+    const user = this.userLocalStorage.getLoggedInUser()
+    if (!user) return
+
+    // Initialize user
+    this.authService.buildAuthUser(user, tokens)
   }
 }

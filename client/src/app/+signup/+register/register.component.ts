@@ -1,26 +1,56 @@
-import { Component, OnInit } from '@angular/core'
+import { CdkStep, CdkStepperNext, CdkStepperPrevious } from '@angular/cdk/stepper'
+import { NgIf } from '@angular/common'
+import { Component, OnInit, ViewChild } from '@angular/core'
 import { FormGroup } from '@angular/forms'
-import { ActivatedRoute } from '@angular/router'
-import { AuthService, UserService } from '@app/core'
+import { ActivatedRoute, RouterLink } from '@angular/router'
+import { AuthService, ServerService } from '@app/core'
 import { HooksService } from '@app/core/plugins/hooks.service'
-import { NgbAccordion } from '@ng-bootstrap/ng-bootstrap'
-import { UserRegister } from '@shared/models'
-import { ServerConfig } from '@shared/models/server'
-import { InstanceAboutAccordionComponent } from '@app/shared/shared-instance'
+import { InstanceAboutAccordionComponent } from '@app/shared/shared-instance/instance-about-accordion.component'
+import { AlertComponent } from '@app/shared/shared-main/common/alert.component'
+import { PeerTubeProblemDocument, ServerConfig, ServerStats, UserRegister } from '@peertube/peertube-models'
+import { LoaderComponent } from '../../shared/shared-main/common/loader.component'
+import { SignupLabelComponent } from '../../shared/shared-main/users/signup-label.component'
+import { SignupStepTitleComponent } from '../shared/signup-step-title.component'
+import { SignupSuccessBeforeEmailComponent } from '../shared/signup-success-before-email.component'
+import { SignupService } from '../shared/signup.service'
+import { CustomStepperComponent } from './custom-stepper.component'
+import { RegisterStepAboutComponent } from './steps/register-step-about.component'
+import { RegisterStepChannelComponent } from './steps/register-step-channel.component'
+import { RegisterStepTermsComponent } from './steps/register-step-terms.component'
+import { RegisterStepUserComponent } from './steps/register-step-user.component'
 
 @Component({
   selector: 'my-register',
   templateUrl: './register.component.html',
-  styleUrls: [ './register.component.scss' ]
+  styleUrls: [ './register.component.scss' ],
+  imports: [
+    NgIf,
+    SignupLabelComponent,
+    CustomStepperComponent,
+    CdkStep,
+    SignupStepTitleComponent,
+    RegisterStepAboutComponent,
+    RouterLink,
+    CdkStepperNext,
+    InstanceAboutAccordionComponent,
+    RegisterStepTermsComponent,
+    CdkStepperPrevious,
+    RegisterStepUserComponent,
+    RegisterStepChannelComponent,
+    LoaderComponent,
+    SignupSuccessBeforeEmailComponent,
+    AlertComponent
+  ]
 })
 export class RegisterComponent implements OnInit {
-  accordion: NgbAccordion
-  info: string = null
-  error: string = null
-  success: string = null
-  signupDone = false
+  @ViewChild('lastStep') lastStep: CdkStep
+  @ViewChild('instanceAboutAccordion') instanceAboutAccordion: InstanceAboutAccordionComponent
+
+  signupError: string
+  signupSuccess = false
 
   videoUploadDisabled: boolean
+  videoQuota: number
 
   formStepTerms: FormGroup
   formStepUser: FormGroup
@@ -38,18 +68,21 @@ export class RegisterComponent implements OnInit {
     moderation: false
   }
 
-  defaultPreviousStepButtonLabel = $localize`:Button on the registration form to go to the previous step:Back`
-  defaultNextStepButtonLabel = $localize`:Button on the registration form to go to the previous step:Next`
+  defaultPreviousStepButtonLabel = $localize`Go to the previous step`
+  defaultNextStepButtonLabel = $localize`Go to the next step`
   stepUserButtonLabel = this.defaultNextStepButtonLabel
 
   signupDisabled = false
+
+  serverStats: ServerStats
 
   private serverConfig: ServerConfig
 
   constructor (
     private route: ActivatedRoute,
     private authService: AuthService,
-    private userService: UserService,
+    private signupService: SignupService,
+    private server: ServerService,
     private hooks: HooksService
   ) { }
 
@@ -57,11 +90,19 @@ export class RegisterComponent implements OnInit {
     return this.serverConfig.signup.requiresEmailVerification
   }
 
+  get requiresApproval () {
+    return this.serverConfig.signup.requiresApproval
+  }
+
   get minimumAge () {
     return this.serverConfig.signup.minimumAge
   }
 
-  ngOnInit (): void {
+  get instanceName () {
+    return this.serverConfig.instance.name
+  }
+
+  ngOnInit () {
     this.serverConfig = this.route.snapshot.data.serverConfig
 
     if (this.serverConfig.signup.allowed === false || this.serverConfig.signup.allowedForCurrentIP === false) {
@@ -69,13 +110,17 @@ export class RegisterComponent implements OnInit {
       return
     }
 
-    this.videoUploadDisabled = this.serverConfig.user.videoQuota === 0
+    this.videoQuota = this.serverConfig.user.videoQuota
+    this.videoUploadDisabled = this.videoQuota === 0
+
     this.stepUserButtonLabel = this.videoUploadDisabled
       ? $localize`:Button on the registration form to finalize the account and channel creation:Signup`
       : this.defaultNextStepButtonLabel
 
-    this.hooks.runAction('action:signup.register.init', 'signup')
+    this.server.getServerStats()
+      .subscribe(stats => this.serverStats = stats)
 
+    this.hooks.runAction('action:signup.register.init', 'signup')
   }
 
   hasSameChannelAndAccountNames () {
@@ -107,52 +152,81 @@ export class RegisterComponent implements OnInit {
   }
 
   onTermsClick () {
-    if (this.accordion) this.accordion.toggle('terms')
+    this.instanceAboutAccordion.expandTerms()
   }
 
   onCodeOfConductClick () {
-    if (this.accordion) this.accordion.toggle('code-of-conduct')
+    this.instanceAboutAccordion.expandCodeOfConduct()
   }
 
   onInstanceAboutAccordionInit (instanceAboutAccordion: InstanceAboutAccordionComponent) {
-    this.accordion = instanceAboutAccordion.accordion
     this.aboutHtml = instanceAboutAccordion.aboutHtml
   }
 
-  async signup () {
-    this.error = null
+  skipChannelCreation () {
+    this.formStepChannel.reset()
+    this.lastStep.select()
 
-    const body: UserRegister = await this.hooks.wrapObject(
-      Object.assign(this.formStepUser.value, { channel: this.videoUploadDisabled ? undefined : this.formStepChannel.value }),
+    this.signup()
+  }
+
+  async signup () {
+    this.signupError = undefined
+
+    const termsForm = this.formStepTerms.value
+    const userForm = this.formStepUser.value
+    const channelForm = this.formStepChannel?.value
+
+    const channel = this.formStepChannel?.value?.name
+      ? { name: channelForm?.name, displayName: channelForm?.displayName }
+      : undefined
+
+    const body = await this.hooks.wrapObject(
+      {
+        username: userForm.username,
+        password: userForm.password,
+        email: userForm.email,
+        displayName: userForm.displayName,
+
+        registrationReason: termsForm.registrationReason,
+
+        channel
+      },
       'signup',
       'filter:api.signup.registration.create.params'
     )
 
-    this.userService.signup(body).subscribe({
-      next: () => {
-        this.signupDone = true
+    const obs = this.requiresApproval
+      ? this.signupService.requestSignup(body)
+      : this.signupService.directSignup(body)
 
-        if (this.requiresEmailVerification) {
-          this.info = $localize`Now please check your emails to verify your account and complete signup.`
+    obs.subscribe({
+      next: () => {
+        if (this.requiresEmailVerification || this.requiresApproval) {
+          this.signupSuccess = true
           return
         }
 
         // Auto login
-        this.authService.login(body.username, body.password)
-          .subscribe({
-            next: () => {
-              this.success = $localize`You are now logged in as ${body.username}!`
-            },
-
-            error: err => {
-              this.error = err.message
-            }
-          })
+        this.autoLogin(body)
       },
 
       error: err => {
-        this.error = err.message
+        this.signupError = (err.body as PeerTubeProblemDocument)?.detail || err.message
       }
     })
+  }
+
+  private autoLogin (body: UserRegister) {
+    this.authService.login({ username: body.username, password: body.password })
+      .subscribe({
+        next: () => {
+          this.signupSuccess = true
+        },
+
+        error: err => {
+          this.signupError = err.message
+        }
+      })
   }
 }

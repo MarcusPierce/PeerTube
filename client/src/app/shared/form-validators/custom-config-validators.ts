@@ -4,14 +4,14 @@ import { BuildFormValidator } from './form-validator.model'
 export const INSTANCE_NAME_VALIDATOR: BuildFormValidator = {
   VALIDATORS: [ Validators.required ],
   MESSAGES: {
-    required: $localize`Instance name is required.`
+    required: $localize`Platform name is required.`
   }
 }
 
 export const INSTANCE_SHORT_DESCRIPTION_VALIDATOR: BuildFormValidator = {
-  VALIDATORS: [ Validators.max(250) ],
+  VALIDATORS: [ Validators.maxLength(250) ],
   MESSAGES: {
-    max: $localize`Short description should not be longer than 250 characters.`
+    maxlength: $localize`Short description must not be longer than 250 characters.`
   }
 }
 
@@ -22,21 +22,12 @@ export const SERVICES_TWITTER_USERNAME_VALIDATOR: BuildFormValidator = {
   }
 }
 
-export const CACHE_PREVIEWS_SIZE_VALIDATOR: BuildFormValidator = {
+export const CACHE_SIZE_VALIDATOR: BuildFormValidator = {
   VALIDATORS: [ Validators.required, Validators.min(1), Validators.pattern('[0-9]+') ],
   MESSAGES: {
-    required: $localize`Previews cache size is required.`,
-    min: $localize`Previews cache size must be greater than 1.`,
-    pattern: $localize`Previews cache size must be a number.`
-  }
-}
-
-export const CACHE_CAPTIONS_SIZE_VALIDATOR: BuildFormValidator = {
-  VALIDATORS: [ Validators.required, Validators.min(1), Validators.pattern('[0-9]+') ],
-  MESSAGES: {
-    required: $localize`Captions cache size is required.`,
-    min: $localize`Captions cache size must be greater than 1.`,
-    pattern: $localize`Captions cache size must be a number.`
+    required: $localize`Cache size is required.`,
+    min: $localize`Cache size must be greater than 1.`,
+    pattern: $localize`Cache size must be a number.`
   }
 }
 
@@ -74,19 +65,27 @@ export const TRANSCODING_THREADS_VALIDATOR: BuildFormValidator = {
   }
 }
 
+export const TRANSCODING_MAX_FPS_VALIDATOR: BuildFormValidator = {
+  VALIDATORS: [ Validators.required, Validators.min(1) ],
+  MESSAGES: {
+    required: $localize`Transcoding max FPS is required.`,
+    min: $localize`Transcoding max FPS must be greater or equal to 1.`
+  }
+}
+
 export const MAX_LIVE_DURATION_VALIDATOR: BuildFormValidator = {
   VALIDATORS: [ Validators.required, Validators.min(-1) ],
   MESSAGES: {
     required: $localize`Max live duration is required.`,
-    min: $localize`Max live duration should be greater or equal to -1.`
+    min: $localize`Max live duration must be greater or equal to -1.`
   }
 }
 
 export const MAX_INSTANCE_LIVES_VALIDATOR: BuildFormValidator = {
   VALIDATORS: [ Validators.required, Validators.min(-1) ],
   MESSAGES: {
-    required: $localize`Max instance lives is required.`,
-    min: $localize`Max instance lives should be greater or equal to -1.`
+    required: $localize`Max lives is required.`,
+    min: $localize`Max lives must be greater or equal to -1.`
   }
 }
 
@@ -94,7 +93,7 @@ export const MAX_USER_LIVES_VALIDATOR: BuildFormValidator = {
   VALIDATORS: [ Validators.required, Validators.min(-1) ],
   MESSAGES: {
     required: $localize`Max user lives is required.`,
-    min: $localize`Max user lives should be greater or equal to -1.`
+    min: $localize`Max user lives must be greater or equal to -1.`
   }
 }
 
@@ -107,24 +106,34 @@ export const MAX_VIDEO_CHANNELS_PER_USER_VALIDATOR: BuildFormValidator = {
   }
 }
 
+export const MAX_SYNC_PER_USER: BuildFormValidator = {
+  VALIDATORS: [ Validators.required, Validators.min(1), Validators.pattern('[0-9]+') ],
+  MESSAGES: {
+    required: $localize`Max synchronizations per user is required.`,
+    min: $localize`Max synchronizations per user must be greater or equal to 1.`,
+    pattern: $localize`Max synchronizations per user must be a number.`
+  }
+}
+
 export const CONCURRENCY_VALIDATOR: BuildFormValidator = {
   VALIDATORS: [ Validators.required, Validators.min(1) ],
   MESSAGES: {
     required: $localize`Concurrency is required.`,
-    min: $localize`Concurrency should be greater or equal to 1.`
+    min: $localize`Concurrency must be greater or equal to 1.`
   }
 }
 
-export const INDEX_URL_VALIDATOR: BuildFormValidator = {
-  VALIDATORS: [ Validators.pattern(/^https:\/\//) ],
+export const EXPORT_EXPIRATION_VALIDATOR: BuildFormValidator = {
+  VALIDATORS: [ Validators.required, Validators.min(1) ],
   MESSAGES: {
-    pattern: $localize`Index URL should be a URL`
+    required: $localize`Export expiration is required.`,
+    min: $localize`Export expiration must be greater or equal to 1.`
   }
 }
-
-export const SEARCH_INDEX_URL_VALIDATOR: BuildFormValidator = {
-  VALIDATORS: [ Validators.pattern(/^https?:\/\//) ],
+export const EXPORT_MAX_USER_VIDEO_QUOTA_VALIDATOR: BuildFormValidator = {
+  VALIDATORS: [ Validators.required, Validators.min(1) ],
   MESSAGES: {
-    pattern: $localize`Search index URL should be a URL`
+    required: $localize`Max user video quota is required.`,
+    min: $localize`Max user video video quota must be greater or equal to 1.`
   }
 }

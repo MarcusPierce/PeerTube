@@ -1,21 +1,43 @@
-
+import { NgClass, NgFor, NgIf } from '@angular/common'
 import { Component, EventEmitter, Input, OnChanges, OnInit, Output, ViewChild } from '@angular/core'
+import { RouterLink } from '@angular/router'
 import { MarkdownService, Notifier, UserService } from '@app/core'
 import { AuthService } from '@app/core/auth'
-import { Account, DropdownAction, Video } from '@app/shared/shared-main'
+import { Account } from '@app/shared/shared-main/account/account.model'
+import { DropdownAction } from '@app/shared/shared-main/buttons/action-dropdown.component'
+import { Video } from '@app/shared/shared-main/video/video.model'
 import { CommentReportComponent } from '@app/shared/shared-moderation/report-modals/comment-report.component'
-import { VideoComment, VideoCommentThreadTree } from '@app/shared/shared-video-comment'
-import { User, UserRight } from '@shared/models'
+import { VideoCommentThreadTree } from '@app/shared/shared-video-comment/video-comment-thread-tree.model'
+import { VideoComment } from '@app/shared/shared-video-comment/video-comment.model'
+import { User, UserRight } from '@peertube/peertube-models'
+import { ActorAvatarComponent } from '../../../../shared/shared-actor-image/actor-avatar.component'
+import { FromNowPipe } from '../../../../shared/shared-main/date/from-now.pipe'
+import { UserModerationDropdownComponent } from '../../../../shared/shared-moderation/user-moderation-dropdown.component'
+import { TimestampRouteTransformerDirective } from '../timestamp-route-transformer.directive'
+import { VideoCommentAddComponent } from './video-comment-add.component'
 
 @Component({
   selector: 'my-video-comment',
   templateUrl: './video-comment.component.html',
-  styleUrls: [ './video-comment.component.scss' ]
+  styleUrls: [ './video-comment.component.scss' ],
+  imports: [
+    NgIf,
+    NgClass,
+    ActorAvatarComponent,
+    RouterLink,
+    TimestampRouteTransformerDirective,
+    UserModerationDropdownComponent,
+    VideoCommentAddComponent,
+    NgFor,
+    CommentReportComponent,
+    FromNowPipe
+  ]
 })
 export class VideoCommentComponent implements OnInit, OnChanges {
   @ViewChild('commentReportModal') commentReportModal: CommentReportComponent
 
   @Input() video: Video
+  @Input() videoPassword: string
   @Input() comment: VideoComment
   @Input() parentComments: VideoComment[] = []
   @Input() commentTree: VideoCommentThreadTree
@@ -26,6 +48,7 @@ export class VideoCommentComponent implements OnInit, OnChanges {
 
   @Output() wantedToReply = new EventEmitter<VideoComment>()
   @Output() wantedToDelete = new EventEmitter<VideoComment>()
+  @Output() wantedToApprove = new EventEmitter<VideoComment>()
   @Output() wantedToRedraft = new EventEmitter<VideoComment>()
   @Output() threadCreated = new EventEmitter<VideoCommentThreadTree>()
   @Output() resetReply = new EventEmitter()
@@ -92,6 +115,10 @@ export class VideoCommentComponent implements OnInit, OnChanges {
     this.wantedToRedraft.emit(comment || this.comment)
   }
 
+  onWantToApprove (comment?: VideoComment) {
+    this.wantedToApprove.emit(comment || this.comment)
+  }
+
   isUserLoggedIn () {
     return this.authService.isLoggedIn()
   }
@@ -104,12 +131,20 @@ export class VideoCommentComponent implements OnInit, OnChanges {
     this.timestampClicked.emit(timestamp)
   }
 
-  isRemovableByUser () {
+  canBeRemovedUser () {
     return this.comment.account && this.isUserLoggedIn() &&
       (
         this.user.account.id === this.comment.account.id ||
         this.user.account.id === this.video.account.id ||
-        this.user.hasRight(UserRight.REMOVE_ANY_VIDEO_COMMENT)
+        this.user.hasRight(UserRight.MANAGE_ANY_VIDEO_COMMENT)
+      )
+  }
+
+  canBeApprovedByUser () {
+    return this.comment.account && this.isUserLoggedIn() &&
+      (
+        this.user.account.id === this.video.account.id ||
+        this.user.hasRight(UserRight.MANAGE_ANY_VIDEO_COMMENT)
       )
   }
 
@@ -160,7 +195,7 @@ export class VideoCommentComponent implements OnInit, OnChanges {
   private async init () {
     // Before HTML rendering restore line feed for markdown list compatibility
     const commentText = this.comment.text.replace(/<br.?\/?>/g, '\r\n')
-    const html = await this.markdownService.textMarkdownToHTML(commentText, true, true)
+    const html = await this.markdownService.textMarkdownToHTML({ markdown: commentText, withHtml: true, withEmoji: true })
     this.sanitizedCommentHTML = this.markdownService.processVideoTimestamps(this.video.shortUUID, html)
     this.newParentComments = this.parentComments.concat([ this.comment ])
 
@@ -173,6 +208,14 @@ export class VideoCommentComponent implements OnInit, OnChanges {
 
     this.prependModerationActions = []
 
+    if (this.canBeApprovedByUser() && this.comment.heldForReview) {
+      this.prependModerationActions.push({
+        label: $localize`Approve`,
+        iconName: 'tick',
+        handler: () => this.onWantToApprove()
+      })
+    }
+
     if (this.isReportableByUser()) {
       this.prependModerationActions.push({
         label: $localize`Report this comment`,
@@ -181,7 +224,7 @@ export class VideoCommentComponent implements OnInit, OnChanges {
       })
     }
 
-    if (this.isRemovableByUser()) {
+    if (this.canBeRemovedUser()) {
       this.prependModerationActions.push({
         label: $localize`Remove`,
         iconName: 'delete',

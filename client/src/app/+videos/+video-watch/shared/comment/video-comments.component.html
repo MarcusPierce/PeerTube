@@ -1,15 +1,16 @@
 <div>
   <div class="title-block">
-    <h2 class="title-page title-page-single">
+    <h2>
       {totalNotDeletedComments, plural, =0 {Comments} =1 {1 Comment} other {{{totalNotDeletedComments}} Comments}}
     </h2>
 
     <my-feed [syndicationItems]="syndicationItems"></my-feed>
 
-    <div ngbDropdown class="d-inline-block ml-4 dropdown-root">
-      <button class="btn btn-sm btn-outline-secondary" id="dropdown-sort-comments" ngbDropdownToggle i18n>
+    <div ngbDropdown class="d-inline-block ms-auto dropdown-root">
+      <button class="peertube-button tertiary-button" id="dropdown-sort-comments" ngbDropdownToggle i18n>
         SORT BY
       </button>
+
       <div ngbDropdownMenu aria-labelledby="dropdown-sort-comments">
         <button (click)="handleSortChange('-createdAt')" ngbDropdownItem i18n>Most recent first (default)</button>
         <button (click)="handleSortChange('-totalReplies')" ngbDropdownItem i18n>Most replies first</button>
@@ -17,9 +18,10 @@
     </div>
   </div>
 
-  <ng-template [ngIf]="video.commentsEnabled === true">
+  @if (commentsEnabled) {
     <my-video-comment-add
       [video]="video"
+      [videoPassword]="videoPassword"
       [user]="user"
       (commentCreated)="onCommentThreadCreated($event)"
       [textValue]="commentThreadRedraftValue"
@@ -34,6 +36,7 @@
           *ngIf="highlightedThread"
           [comment]="highlightedThread"
           [video]="video"
+          [videoPassword]="videoPassword"
           [inReplyToCommentId]="inReplyToCommentId"
           [commentTree]="threadComments[highlightedThread.id]"
           [highlightedComment]="true"
@@ -41,6 +44,7 @@
           (wantedToReply)="onWantedToReply($event)"
           (wantedToDelete)="onWantedToDelete($event)"
           (wantedToRedraft)="onWantedToRedraft($event)"
+          (wantedToApprove)="onWantToApprove($event)"
           (threadCreated)="onThreadCreated($event)"
           (resetReply)="onResetReply()"
           (timestampClicked)="handleTimestampClicked($event)"
@@ -53,19 +57,21 @@
           *ngIf="!highlightedThread || comment.id !== highlightedThread.id"
           [comment]="comment"
           [video]="video"
+          [videoPassword]="videoPassword"
           [inReplyToCommentId]="inReplyToCommentId"
           [commentTree]="threadComments[comment.id]"
           [firstInThread]="i + 1 !== comments.length"
           (wantedToReply)="onWantedToReply($event)"
           (wantedToDelete)="onWantedToDelete($event)"
           (wantedToRedraft)="onWantedToRedraft($event)"
+          (wantedToApprove)="onWantToApprove($event)"
           (threadCreated)="onThreadCreated($event)"
           (resetReply)="onResetReply()"
           (timestampClicked)="handleTimestampClicked($event)"
           [redraftValue]="commentReplyRedraftValue"
         >
-          <div *ngIf="comment.totalReplies !== 0 && !threadComments[comment.id]" (click)="viewReplies(comment.id)" class="view-replies mb-2">
-            <span class="glyphicon glyphicon-menu-down"></span>
+          <button *ngIf="comment.totalReplies !== 0 && !threadComments[comment.id]" (click)="viewReplies(comment.id)" class="view-replies mb-2 button-unstyle">
+            <span class="chevron-down"></span>
 
             <ng-container *ngIf="comment.totalRepliesFromVideoAuthor > 0; then hasAuthorComments; else noAuthorComments"></ng-container>
 
@@ -80,15 +86,13 @@
 
             <ng-template i18n #noAuthorComments>View {comment.totalReplies, plural, =1 {1 reply} other {{{ comment.totalReplies }} replies}}</ng-template>
 
-            <my-small-loader class="comment-thread-loading ml-1" [loading]="threadLoading[comment.id]"></my-small-loader>
-          </div>
+            <my-loader size="sm" class="ms-1" [loading]="threadLoading[comment.id]"></my-loader>
+          </button>
         </my-video-comment>
 
       </div>
     </div>
-  </ng-template>
-
-  <div *ngIf="video.commentsEnabled === false" i18n>
-    Comments are disabled.
-  </div>
+  } @else {
+    <div i18n>Comments are disabled.</div>
+  }
 </div>

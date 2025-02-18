@@ -1,24 +1,30 @@
-import { Observable } from 'rxjs'
-import { Component, EventEmitter, Input, OnChanges, OnInit, Output } from '@angular/core'
-import { AuthService, Notifier, SessionStorageService, User, UserService } from '@app/core'
-import { Video } from '@app/shared/shared-main'
-import { MiniatureDisplayOptions } from '@app/shared/shared-video-miniature'
-import { VideoPlaylist } from '@app/shared/shared-video-playlist'
-import { UserLocalStorageKeys } from '@root-helpers/users'
-import { RecommendationInfo } from './recommendation-info.model'
-import { RecommendedVideosStore } from './recommended-videos.store'
+import { AsyncPipe, NgClass, NgFor, NgIf } from '@angular/common'
+import { Component, EventEmitter, Input, OnChanges, OnDestroy, OnInit, Output } from '@angular/core'
+import { FormsModule } from '@angular/forms'
+import { AuthService, Notifier, User, UserService } from '@app/core'
+import { VideoDetails } from '@app/shared/shared-main/video/video-details.model'
+import { Video } from '@app/shared/shared-main/video/video.model'
+import { NgbTooltip } from '@ng-bootstrap/ng-bootstrap'
+import { VideoPlaylist } from '@peertube/peertube-models'
+import { Subscription, startWith, switchMap } from 'rxjs'
+import { InputSwitchComponent } from '../../../../shared/shared-forms/input-switch.component'
+import { MiniatureDisplayOptions, VideoMiniatureComponent } from '../../../../shared/shared-video-miniature/video-miniature.component'
+import { VideoRecommendationService } from './video-recommendation.service'
 
 @Component({
   selector: 'my-recommended-videos',
   templateUrl: './recommended-videos.component.html',
-  styleUrls: [ './recommended-videos.component.scss' ]
+  styleUrls: [ './recommended-videos.component.scss' ],
+  imports: [ NgClass, NgIf, NgbTooltip, InputSwitchComponent, FormsModule, NgFor, VideoMiniatureComponent, AsyncPipe ]
 })
-export class RecommendedVideosComponent implements OnInit, OnChanges {
-  @Input() inputRecommendation: RecommendationInfo
+export class RecommendedVideosComponent implements OnInit, OnChanges, OnDestroy {
+  @Input() currentVideo: VideoDetails
   @Input() playlist: VideoPlaylist
   @Input() displayAsRow: boolean
 
   @Output() gotRecommendations = new EventEmitter<Video[]>()
+
+  videos: Video[] = []
 
   autoPlayNextVideo: boolean
   autoPlayNextVideoTooltip: string
@@ -30,60 +36,49 @@ export class RecommendedVideosComponent implements OnInit, OnChanges {
     avatar: true
   }
 
-  userMiniature: User
+  user: User
 
-  readonly hasVideos$: Observable<boolean>
-  readonly videos$: Observable<Video[]>
+  private userSub: Subscription
 
   constructor (
     private userService: UserService,
     private authService: AuthService,
     private notifier: Notifier,
-    private store: RecommendedVideosStore,
-    private sessionStorageService: SessionStorageService
+    private videoRecommendation: VideoRecommendationService
   ) {
-    this.videos$ = this.store.recommendations$
-    this.hasVideos$ = this.store.hasRecommendations$
-    this.videos$.subscribe(videos => this.gotRecommendations.emit(videos))
-
-    if (this.authService.isLoggedIn()) {
-      this.autoPlayNextVideo = this.authService.getUser().autoPlayNextVideo
-    } else {
-      this.autoPlayNextVideo = this.sessionStorageService.getItem(UserLocalStorageKeys.SESSION_STORAGE_AUTO_PLAY_NEXT_VIDEO) === 'true'
-
-      this.sessionStorageService.watch([ UserLocalStorageKeys.SESSION_STORAGE_AUTO_PLAY_NEXT_VIDEO ]).subscribe(
-        () => {
-          this.autoPlayNextVideo = this.sessionStorageService.getItem(UserLocalStorageKeys.SESSION_STORAGE_AUTO_PLAY_NEXT_VIDEO) === 'true'
-        }
-      )
-    }
-
     this.autoPlayNextVideoTooltip = $localize`When active, the next video is automatically played after the current one.`
   }
 
   ngOnInit () {
-    this.userService.getAnonymousOrLoggedUser()
-      .subscribe(user => this.userMiniature = user)
+    this.userSub = this.userService.listenAnonymousUpdate()
+      .pipe(
+        startWith(true),
+        switchMap(() => this.userService.getAnonymousOrLoggedUser())
+      )
+      .subscribe(user => {
+        this.user = user
+        this.autoPlayNextVideo = user.autoPlayNextVideo
+      })
   }
 
   ngOnChanges () {
-    if (this.inputRecommendation) {
-      this.store.requestNewRecommendations(this.inputRecommendation)
+    if (this.currentVideo) {
+      this.loadRecommendations()
     }
   }
 
+  ngOnDestroy () {
+    if (this.userSub) this.userSub.unsubscribe()
+  }
+
   onVideoRemoved () {
-    this.store.requestNewRecommendations(this.inputRecommendation)
+    this.loadRecommendations()
   }
 
   switchAutoPlayNextVideo () {
-    this.sessionStorageService.setItem(UserLocalStorageKeys.SESSION_STORAGE_AUTO_PLAY_NEXT_VIDEO, this.autoPlayNextVideo.toString())
+    const details = { autoPlayNextVideo: this.autoPlayNextVideo }
 
     if (this.authService.isLoggedIn()) {
-      const details = {
-        autoPlayNextVideo: this.autoPlayNextVideo
-      }
-
       this.userService.updateMyProfile(details)
         .subscribe({
           next: () => {
@@ -92,6 +87,21 @@ export class RecommendedVideosComponent implements OnInit, OnChanges {
 
           error: err => this.notifier.error(err.message)
         })
+    } else {
+      this.userService.updateMyAnonymousProfile(details)
     }
+  }
+
+  private loadRecommendations () {
+    this.videoRecommendation.getRecommendations(this.currentVideo, this.videoRecommendation.getRecommentationHistory())
+      .subscribe({
+        next: videos => {
+          this.videos = videos
+
+          this.gotRecommendations.emit(this.videos)
+        },
+
+        error: err => this.notifier.error(err.message)
+      })
   }
 }

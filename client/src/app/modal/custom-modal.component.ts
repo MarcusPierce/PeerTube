@@ -1,10 +1,14 @@
-import { Component, ElementRef, ViewChild, Input } from '@angular/core'
+import { Component, ElementRef, Input, ViewChild } from '@angular/core'
 import { NgbModal, NgbModalRef } from '@ng-bootstrap/ng-bootstrap'
+import { logger } from '@root-helpers/logger'
+import { GlobalIconComponent } from '../shared/shared-icons/global-icon.component'
+import { NgIf } from '@angular/common'
 
 @Component({
   selector: 'my-custom-modal',
   templateUrl: './custom-modal.component.html',
-  styleUrls: [ './custom-modal.component.scss' ]
+  styleUrls: [ './custom-modal.component.scss' ],
+  imports: [ NgIf, GlobalIconComponent ]
 })
 export class CustomModalComponent {
   @ViewChild('modal', { static: true }) modal: ElementRef
@@ -29,7 +33,7 @@ export class CustomModalComponent {
     confirm?: { value: string, action?: () => void }
   }) {
     if (this.modalRef instanceof NgbModalRef && this.modalService.hasOpenModals()) {
-      console.error('Cannot open another custom modal, one is already opened.')
+      logger.error('Cannot open another custom modal, one is already opened.')
       return
     }
 

@@ -1,20 +1,29 @@
-import { Component, OnInit } from '@angular/core'
+import { NgFor, NgIf } from '@angular/common'
+import { Component, Input, OnInit } from '@angular/core'
 import { ServerService } from '@app/core'
-import { ServerConfig } from '@shared/models'
-import { PeertubeModalService } from '../shared-main/peertube-modal/peertube-modal.service'
+import { formatICU } from '@app/helpers'
+import { ServerConfig, ServerStats } from '@peertube/peertube-models'
+import { of } from 'rxjs'
+import { HelpComponent } from '../shared-main/buttons/help.component'
+import { BytesPipe } from '../shared-main/common/bytes.pipe'
+import { PeerTubeTemplateDirective } from '../shared-main/common/peertube-template.directive'
+import { DaysDurationFormatterPipe } from '../shared-main/date/days-duration-formatter.pipe'
+import { FeatureBooleanComponent } from './feature-boolean.component'
 
 @Component({
   selector: 'my-instance-features-table',
   templateUrl: './instance-features-table.component.html',
-  styleUrls: [ './instance-features-table.component.scss' ]
+  styleUrls: [ './instance-features-table.component.scss' ],
+  imports: [ NgIf, FeatureBooleanComponent, HelpComponent, PeerTubeTemplateDirective, NgFor, BytesPipe ]
 })
 export class InstanceFeaturesTableComponent implements OnInit {
+  @Input() serverConfig: ServerConfig
+  @Input() serverStats: ServerStats
+
   quotaHelpIndication = ''
-  serverConfig: ServerConfig
 
   constructor (
-    private serverService: ServerService,
-    private modalService: PeertubeModalService
+    private serverService: ServerService
   ) { }
 
   get initialUserVideoQuota () {
@@ -40,11 +49,19 @@ export class InstanceFeaturesTableComponent implements OnInit {
   }
 
   ngOnInit () {
-    this.serverService.getConfig()
-        .subscribe(config => {
-          this.serverConfig = config
-          this.buildQuotaHelpIndication()
-        })
+    const serverConfigObs = this.serverConfig
+      ? of(this.serverConfig)
+      : this.serverService.getConfig()
+
+    serverConfigObs.subscribe(config => {
+      this.serverConfig = config
+
+      this.buildQuotaHelpIndication()
+    })
+
+    if (!this.serverStats) {
+      this.serverService.getServerStats().subscribe(stats => this.serverStats = stats)
+    }
   }
 
   buildNSFWLabel () {
@@ -55,25 +72,45 @@ export class InstanceFeaturesTableComponent implements OnInit {
     if (policy === 'display') return $localize`Displayed`
   }
 
+  buildRegistrationLabel () {
+    const config = this.serverConfig.signup
+
+    if (config.allowed !== true) return $localize`Disabled`
+
+    if (config.requiresApproval === true) {
+      const responseTimeMS = this.serverStats?.averageRegistrationRequestResponseTimeMs
+
+      if (!responseTimeMS) {
+        return $localize`Requires approval by moderators`
+      }
+
+      const responseTime = new DaysDurationFormatterPipe().transform(responseTimeMS)
+      return $localize`Requires approval by moderators (~ ${responseTime})`
+    }
+
+    return $localize`Enabled`
+  }
+
   getServerVersionAndCommit () {
     return this.serverService.getServerVersionAndCommit()
   }
 
-  openQuickSettingsHighlight () {
-    this.modalService.openQuickSettingsSubject.next()
-  }
-
   private getApproximateTime (seconds: number) {
     const hours = Math.floor(seconds / 3600)
-    let pluralSuffix = ''
-    if (hours > 1) pluralSuffix = 's'
-    if (hours > 0) return `~ ${hours} hour${pluralSuffix}`
+
+    if (hours !== 0) {
+      return formatICU(
+        $localize`~ {hours, plural, =1 {1 hour} other {{hours} hours}}`,
+        { hours }
+      )
+    }
 
     const minutes = Math.floor(seconds % 3600 / 60)
 
-    if (minutes === 1) return $localize`~ 1 minute`
-
-    return $localize`~ ${minutes} minutes`
+    return formatICU(
+      $localize`~ {minutes, plural, =1 {1 minute} other {{minutes} minutes}}`,
+      { minutes }
+    )
   }
 
   private buildQuotaHelpIndication () {

@@ -2,21 +2,23 @@ import { AuthUser } from '@app/core'
 import { User } from '@app/core/users/user.model'
 import { durationToString, getAbsoluteAPIUrl, getAbsoluteEmbedUrl } from '@app/helpers'
 import { Actor } from '@app/shared/shared-main/account/actor.model'
-import { buildVideoWatchPath } from '@shared/core-utils'
-import { peertubeTranslate } from '@shared/core-utils/i18n'
+import { buildVideoWatchPath, getAllFiles, peertubeTranslate } from '@peertube/peertube-core-utils'
 import {
   ActorImage,
   HTMLServerConfig,
   UserRight,
-  Video as VideoServerModel,
   VideoConstant,
   VideoFile,
   VideoPrivacy,
+  VideoPrivacyType,
   VideoScheduleUpdate,
+  Video as VideoServerModel,
+  VideoSource,
   VideoState,
+  VideoStateType,
   VideoStreamingPlaylist,
   VideoStreamingPlaylistType
-} from '@shared/models'
+} from '@peertube/peertube-models'
 
 export class Video implements VideoServerModel {
   byVideoChannel: string
@@ -26,11 +28,13 @@ export class Video implements VideoServerModel {
   updatedAt: Date
   publishedAt: Date
   originallyPublishedAt: Date | string
+
   category: VideoConstant<number>
   licence: VideoConstant<number>
   language: VideoConstant<string>
-  privacy: VideoConstant<VideoPrivacy>
+  privacy: VideoConstant<VideoPrivacyType>
 
+  truncatedDescription: string
   description: string
 
   duration: number
@@ -47,6 +51,8 @@ export class Video implements VideoServerModel {
   thumbnailPath: string
   thumbnailUrl: string
 
+  aspectRatio: number
+
   isLive: boolean
 
   previewPath: string
@@ -58,8 +64,7 @@ export class Video implements VideoServerModel {
   url: string
 
   views: number
-  // If live
-  viewers?: number
+  viewers: number
 
   likes: number
   dislikes: number
@@ -69,7 +74,7 @@ export class Video implements VideoServerModel {
   originInstanceHost: string
 
   waitTranscoding?: boolean
-  state?: VideoConstant<VideoState>
+  state?: VideoConstant<VideoStateType>
   scheduledUpdate?: VideoScheduleUpdate
 
   blacklisted?: boolean
@@ -84,7 +89,8 @@ export class Video implements VideoServerModel {
     displayName: string
     url: string
     host: string
-    avatar?: ActorImage
+
+    avatars: ActorImage[]
   }
 
   channel: {
@@ -93,7 +99,8 @@ export class Video implements VideoServerModel {
     displayName: string
     url: string
     host: string
-    avatar?: ActorImage
+
+    avatars: ActorImage[]
   }
 
   userHistory?: {
@@ -105,12 +112,16 @@ export class Video implements VideoServerModel {
   streamingPlaylists?: VideoStreamingPlaylist[]
   files?: VideoFile[]
 
+  videoSource?: VideoSource
+
+  automaticTags?: string[]
+
   static buildWatchUrl (video: Partial<Pick<Video, 'uuid' | 'shortUUID'>>) {
     return buildVideoWatchPath({ shortUUID: video.shortUUID || video.uuid })
   }
 
-  static buildUpdateUrl (video: Pick<Video, 'uuid'>) {
-    return '/videos/update/' + video.uuid
+  static buildUpdateUrl (video: Partial<Pick<Video, 'uuid' | 'shortUUID'>>) {
+    return '/videos/update/' + (video.shortUUID || video.uuid)
   }
 
   constructor (hash: VideoServerModel, translations: { [ id: string ]: string } = {}) {
@@ -124,6 +135,8 @@ export class Video implements VideoServerModel {
     this.privacy = hash.privacy
     this.waitTranscoding = hash.waitTranscoding
     this.state = hash.state
+
+    this.truncatedDescription = hash.truncatedDescription
     this.description = hash.description
 
     this.isLive = hash.isLive
@@ -184,6 +197,7 @@ export class Video implements VideoServerModel {
 
     this.streamingPlaylists = hash.streamingPlaylists
     this.files = hash.files
+    this.videoSource = hash.videoSource
 
     this.userHistory = hash.userHistory
 
@@ -191,6 +205,10 @@ export class Video implements VideoServerModel {
     this.originInstanceUrl = 'https://' + this.originInstanceHost
 
     this.pluginData = hash.pluginData
+
+    this.aspectRatio = hash.aspectRatio
+
+    this.automaticTags = hash.automaticTags
   }
 
   isVideoNSFWForUser (user: User, serverConfig: HTMLServerConfig) {
@@ -220,25 +238,76 @@ export class Video implements VideoServerModel {
     return user && this.isLocal === true && (this.account.name === user.username || user.hasRight(UserRight.UPDATE_ANY_VIDEO))
   }
 
-  canRemoveFiles (user: AuthUser) {
+  isEditableBy (user: AuthUser, videoStudioEnabled: boolean) {
+    return videoStudioEnabled &&
+      this.state?.id === VideoState.PUBLISHED &&
+      this.isUpdatableBy(user)
+  }
+
+  // ---------------------------------------------------------------------------
+
+  isOwner (user: AuthUser) {
+    return user && this.isLocal === true && this.account.name === user.username
+  }
+
+  hasSeeAllVideosRight (user: AuthUser) {
+    return user?.hasRight(UserRight.SEE_ALL_VIDEOS)
+  }
+
+  isOwnerOrHasSeeAllVideosRight (user: AuthUser) {
+    return this.isOwner(user) || this.hasSeeAllVideosRight(user)
+  }
+
+  canRemoveOneFile (user: AuthUser) {
     return this.isLocal &&
-      user.hasRight(UserRight.MANAGE_VIDEO_FILES) &&
+      user && user.hasRight(UserRight.MANAGE_VIDEO_FILES) &&
+      this.state.id !== VideoState.TO_TRANSCODE &&
+      getAllFiles(this).length > 1
+  }
+
+  canRemoveAllHLSOrWebFiles (user: AuthUser) {
+    return this.isLocal &&
+      user && user.hasRight(UserRight.MANAGE_VIDEO_FILES) &&
       this.state.id !== VideoState.TO_TRANSCODE &&
       this.hasHLS() &&
-      this.hasWebTorrent()
+      this.hasWebVideos()
   }
+
+  // ---------------------------------------------------------------------------
 
   canRunTranscoding (user: AuthUser) {
     return this.isLocal &&
-      user.hasRight(UserRight.RUN_VIDEO_TRANSCODING) &&
-      this.state.id !== VideoState.TO_TRANSCODE
+    !this.isLive &&
+    user?.hasRight(UserRight.RUN_VIDEO_TRANSCODING) &&
+    this.state?.id &&
+    !this.transcodingAndTranscriptionIncompatibleStates().has(this.state.id)
   }
+
+  canGenerateTranscription (user: AuthUser, transcriptionEnabled: boolean) {
+    return transcriptionEnabled &&
+      this.isLocal &&
+      !this.isLive &&
+      user.hasRight(UserRight.UPDATE_ANY_VIDEO) &&
+      this.state?.id &&
+      !this.transcodingAndTranscriptionIncompatibleStates().has(this.state.id)
+  }
+
+  private transcodingAndTranscriptionIncompatibleStates () {
+    return new Set<VideoStateType>([
+      VideoState.TO_IMPORT,
+      VideoState.TO_EDIT,
+      VideoState.TO_MOVE_TO_EXTERNAL_STORAGE,
+      VideoState.TO_MOVE_TO_FILE_SYSTEM
+    ])
+  }
+
+  // ---------------------------------------------------------------------------
 
   hasHLS () {
     return this.streamingPlaylists?.some(p => p.type === VideoStreamingPlaylistType.HLS)
   }
 
-  hasWebTorrent () {
+  hasWebVideos () {
     return this.files && this.files.length !== 0
   }
 
@@ -251,13 +320,10 @@ export class Video implements VideoServerModel {
     return user && this.isLocal === false && user.hasRight(UserRight.MANAGE_VIDEOS_REDUNDANCIES)
   }
 
-  getExactNumberOfViews () {
-    if (this.views < 1000) return ''
-
-    if (this.isLive) {
-      return $localize`${this.views} viewers`
-    }
-
-    return $localize`${this.views} views`
+  canAccessPasswordProtectedVideoWithoutPassword (user: AuthUser) {
+    return this.privacy.id === VideoPrivacy.PASSWORD_PROTECTED &&
+      user &&
+      this.isLocal === true &&
+      (this.account.name === user.username || user.hasRight(UserRight.SEE_ALL_VIDEOS))
   }
 }

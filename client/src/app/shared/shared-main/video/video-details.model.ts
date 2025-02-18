@@ -1,45 +1,51 @@
 import { Account } from '@app/shared/shared-main/account/account.model'
-import { VideoChannel } from '@app/shared/shared-main/video-channel/video-channel.model'
+import { VideoChannel } from '@app/shared/shared-main/channel/video-channel.model'
 import {
+  VideoCommentPolicyType,
   VideoConstant,
   VideoDetails as VideoDetailsServerModel,
   VideoFile,
-  VideoState,
+  VideoStateType,
   VideoStreamingPlaylist,
   VideoStreamingPlaylistType
-} from '@shared/models'
+} from '@peertube/peertube-models'
 import { Video } from './video.model'
 
 export class VideoDetails extends Video implements VideoDetailsServerModel {
-  descriptionPath: string
+  declare channel: VideoChannel
+  declare account: Account
+
   support: string
-  channel: VideoChannel
   tags: string[]
-  account: Account
-  commentsEnabled: boolean
   downloadEnabled: boolean
 
-  waitTranscoding: boolean
-  state: VideoConstant<VideoState>
+  commentsEnabled: never
+  commentsPolicy: VideoConstant<VideoCommentPolicyType>
 
   likesPercent: number
   dislikesPercent: number
 
   trackerUrls: string[]
 
-  files: VideoFile[]
-  streamingPlaylists: VideoStreamingPlaylist[]
+  inputFileUpdatedAt: Date | string
+
+  // These fields are not optional
+  declare files: VideoFile[]
+  declare streamingPlaylists: VideoStreamingPlaylist[]
+  declare waitTranscoding: boolean
+  declare state: VideoConstant<VideoStateType>
 
   constructor (hash: VideoDetailsServerModel, translations = {}) {
     super(hash, translations)
 
-    this.descriptionPath = hash.descriptionPath
     this.channel = new VideoChannel(hash.channel)
     this.account = new Account(hash.account)
     this.tags = hash.tags
     this.support = hash.support
-    this.commentsEnabled = hash.commentsEnabled
+    this.commentsPolicy = hash.commentsPolicy
     this.downloadEnabled = hash.downloadEnabled
+
+    this.inputFileUpdatedAt = hash.inputFileUpdatedAt
 
     this.trackerUrls = hash.trackerUrls
 
@@ -57,14 +63,5 @@ export class VideoDetails extends Video implements VideoDetailsServerModel {
 
   hasHlsPlaylist () {
     return !!this.getHlsPlaylist()
-  }
-
-  getFiles () {
-    if (this.files.length !== 0) return this.files
-
-    const hls = this.getHlsPlaylist()
-    if (hls) return hls.files
-
-    return []
   }
 }
